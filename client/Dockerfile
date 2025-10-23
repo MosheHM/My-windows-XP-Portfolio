@@ -3,6 +3,14 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
+# Build arguments for API URLs
+ARG VITE_LLM_SERVICE_URL=/api/llm
+ARG VITE_FILE_SERVICE_URL=/api/files
+
+# Set environment variables from build args
+ENV VITE_LLM_SERVICE_URL=$VITE_LLM_SERVICE_URL
+ENV VITE_FILE_SERVICE_URL=$VITE_FILE_SERVICE_URL
+
 # Copy package files
 COPY package.json package-lock.json* ./
 

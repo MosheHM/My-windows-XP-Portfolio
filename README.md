@@ -8,12 +8,30 @@ This monorepo contains:
 
 ```
 .
-├── client/                 # React/TypeScript frontend
+├── client/                    # React/TypeScript frontend
 ├── services/
-│   ├── llm-service/       # Python FastAPI LLM service with RAG
-│   └── file-service/      # Python FastAPI file storage service
-├── k8s/                   # Kubernetes manifests
-└── docker-compose.yml     # Local development setup
+│   ├── llm-service/          # Python FastAPI LLM service with RAG
+│   └── file-service/         # Python FastAPI file storage service
+├── nginx/                    # Nginx API gateway configuration
+├── k8s/                      # Kubernetes manifests
+├── docker-compose.dev.yml    # Development environment
+├── docker-compose.prod.yml   # Production environment
+└── docker-compose.yml        # Legacy setup (deprecated)
+```
+
+### API Gateway Architecture
+
+All requests go through an Nginx gateway that routes to appropriate services:
+
+```
+Client Request → Nginx Gateway (:80)
+                     ↓
+    ┌────────────────┼────────────────┐
+    ↓                ↓                ↓
+/api/llm/*      /api/files/*        /*
+    ↓                ↓                ↓
+LLM Service    File Service      Client
+  (:8000)         (:8001)         (:80)
 ```
 
 ## 🚀 Services
@@ -46,6 +64,17 @@ This monorepo contains:
   - Multiple file upload support
 - **Port**: 8001
 
+### Nginx Gateway
+- **Technology**: Nginx
+- **Features**:
+  - Reverse proxy for all services
+  - API routing (/api/llm, /api/files)
+  - SSL/TLS ready
+  - Compression and caching
+  - Security headers
+  - Health checks
+- **Port**: 80
+
 ## 🐳 Quick Start with Docker Compose
 
 ### Prerequisites
@@ -53,28 +82,42 @@ This monorepo contains:
 - At least 8GB RAM available for LLM service
 - 10GB+ free disk space for model downloads
 
-### Run All Services
+### Development Environment
 
 ```bash
-# Build and start all services
-docker-compose up --build
+# Build and start all services in development mode
+docker-compose -f docker-compose.dev.yml up --build
 
 # Or run in detached mode
-docker-compose up -d
+docker-compose -f docker-compose.dev.yml up -d
 
 # Check logs
-docker-compose logs -f
+docker-compose -f docker-compose.dev.yml logs -f
 
 # Stop all services
-docker-compose down
+docker-compose -f docker-compose.dev.yml down
+```
+
+### Production Environment
+
+```bash
+# Build and start all services in production mode
+docker-compose -f docker-compose.prod.yml up --build -d
+
+# Check logs
+docker-compose -f docker-compose.prod.yml logs -f
+
+# Stop all services
+docker-compose -f docker-compose.prod.yml down
 ```
 
 ### Access the Application
-- **Client**: http://localhost
-- **LLM Service**: http://localhost:8000
-- **File Service**: http://localhost:8001
-- **API Docs (LLM)**: http://localhost:8000/docs
-- **API Docs (File)**: http://localhost:8001/docs
+- **Application**: http://localhost
+- **LLM API**: http://localhost/api/llm/*
+- **File API**: http://localhost/api/files/*
+- **Health Check**: http://localhost/health
+
+**Note**: All services are now accessed through the Nginx gateway. Direct service ports (8000, 8001) are no longer exposed externally.
 
 ## 🛠️ Local Development
 
@@ -250,11 +293,20 @@ Health check endpoint
 
 ## 🔧 Configuration
 
+### Environment Files
+
+The project supports separate environment configurations:
+
+- `.env.development` - Development environment settings
+- `.env.production` - Production environment settings
+
 ### Environment Variables
 
 #### Client
-- `VITE_LLM_SERVICE_URL`: LLM service URL (default: http://localhost:8000)
-- `VITE_FILE_SERVICE_URL`: File service URL (default: http://localhost:8001)
+- `VITE_LLM_SERVICE_URL`: LLM service URL (default: /api/llm - via gateway)
+- `VITE_FILE_SERVICE_URL`: File service URL (default: /api/files - via gateway)
+
+**Note**: With the nginx gateway, services are accessed via `/api/*` paths instead of direct ports.
 
 #### LLM Service
 - `LLM_MODEL_NAME`: HuggingFace model name (default: TinyLlama/TinyLlama-1.1B-Chat-v1.0)
@@ -266,6 +318,21 @@ Health check endpoint
 - `STORAGE_PATH`: File storage path (default: /data/files)
 - `METADATA_PATH`: Metadata storage path (default: /data/metadata)
 - `MAX_FILE_SIZE`: Max file size in bytes (default: 104857600 = 100MB)
+
+#### Nginx Gateway
+- `NGINX_PORT`: Gateway port (default: 80)
+
+### Switching Between Environments
+
+**Development**: Includes source code mounting for hot reload
+```bash
+docker-compose -f docker-compose.dev.yml up
+```
+
+**Production**: Optimized with resource limits and no source mounting
+```bash
+docker-compose -f docker-compose.prod.yml up
+```
 
 ## 🎯 Features
 
