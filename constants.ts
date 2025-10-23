@@ -38,6 +38,13 @@ export const AndroidIcon = ({ className = 'w-8 h-8' }: { className?: string }): 
     )
 );
 
+export const InternetExplorerIcon = ({ className = 'w-8 h-8' }: { className?: string }): React.ReactElement => (
+    React.createElement('svg', { className, viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg" },
+      React.createElement('path', { d: "M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM11.29 19.44C7.45 19.03 4.54 15.68 4.54 11.75C4.54 11.23 4.6 10.73 4.7 10.24L10.24 10.87C10.15 11.16 10.11 11.45 10.11 11.75C10.11 13.9 11.85 15.65 13.99 15.65C14.73 15.65 15.42 15.42 16.01 15.03L16.6 18.2C14.93 19.05 13.07 19.5 11.29 19.44ZM17.41 12.98C17.08 12.31 16.29 12.03 15.62 12.36C14.95 12.69 14.67 13.48 15 14.15C15.33 14.82 16.12 15.1 16.79 14.77C17.46 14.44 17.74 13.65 17.41 12.98ZM17.89 9.31L12.5 8.5C12.59 7.15 13.5 6.06 14.72 5.59C16.5 4.9 18.57 5.92 19.16 7.67C19.33 8.16 19.1 8.71 18.6 8.89C18.12 9.06 17.57 8.83 17.39 8.34C17.11 7.55 16.16 7.14 15.37 7.42C14.87 7.58 14.48 8.01 14.48 8.53L19.5 9.31C20.05 9.39 20.47 9.88 20.47 10.44C20.47 11.33 19.81 12.1 19.01 12.34C17.18 12.87 15.12 11.77 14.59 9.92C14.28 8.89 14.7 7.73 15.62 7.07C16.53 6.42 17.7 6.24 18.73 6.7C18.04 5.09 16.48 4.02 14.67 4.02C13.56 4.02 12.5 4.42 11.66 5.1L12.04 2.54C14.63 3.42 16.68 5.39 17.58 7.82L17.89 9.31Z", fill: "#0078D7" }),
+      React.createElement('path', { d: "M17.41 12.98C17.08 12.31 16.29 12.03 15.62 12.36C14.95 12.69 14.67 13.48 15 14.15C15.33 14.82 16.12 15.1 16.79 14.77C17.46 14.44 17.74 13.65 17.41 12.98Z", fill: "#FFC107" })
+    )
+);
+
 // Fix: Converted JSX to React.createElement calls.
 export const DownloadIcon = (): React.ReactElement => (
     React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", className: "h-4 w-4 mr-1", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor" },
@@ -150,6 +157,6 @@ export const PROJECTS_DATA: Project[] = [
 ];
 
 export const BLOG_POSTS: Blog[] = [
-    { title: "Building a Real-Time Intent Router: Why You Don't Need a Large LLM", url: 'https://medium.com/' },
-    { title: 'RTK Query Cache Invalidation', url: 'https://medium.com/' },
+    { title: "Building a Real-Time Intent Router: Why You Don't Need a Large LLM", url: 'https://medium.com/@moshe-haim-makias/building-a-real-time-intent-router-why-you-dont-need-a-large-llm-44ff0eda24b6' },
+    { title: 'RTK Query Cache Invalidation', url: 'https://medium.com/@moshe-haim-makias/rtk-query-cache-invalidation-the-hidden-timing-issue-thats-breaking-your-ui-updates-a45cb7b18963' },
 ];

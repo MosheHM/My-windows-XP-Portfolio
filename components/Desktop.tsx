@@ -15,6 +15,14 @@ const Desktop: React.FC = () => {
     const timerId = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timerId);
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      openWindow('chat');
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, []); // Empty dependency array ensures this runs only once on mount
   
   const formattedTime = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const formattedDate = time.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });

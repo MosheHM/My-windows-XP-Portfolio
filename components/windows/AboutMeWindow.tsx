@@ -1,5 +1,6 @@
 import React from 'react';
 import { BLOG_POSTS } from '../../constants';
+import { useWindows } from '../../context/WindowsContext';
 
 const ShortcutIcon = () => (
     <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -12,19 +13,23 @@ const ShortcutIcon = () => (
 );
   
 const AboutMeWindow: React.FC = () => {
+  const { openWindow } = useWindows();
+
+  const handlePostDoubleClick = (post: typeof BLOG_POSTS[0]) => {
+    openWindow('internetExplorer', { url: post.url, title: post.title });
+  };
+
   return (
     <div className="bg-white h-full p-4 grid grid-cols-3 md:flex md:flex-wrap gap-4 items-start content-start">
         {BLOG_POSTS.map(post => (
-            <a
+            <div
                 key={post.title}
-                href={post.url}
-                target="_blank"
-                rel="noopener noreferrer"
+                onDoubleClick={() => handlePostDoubleClick(post)}
                 className="flex flex-col items-center text-center cursor-pointer hover:bg-blue-200 p-2 rounded"
             >
                 <ShortcutIcon />
                 <span className="text-xs mt-1">{post.title}</span>
-            </a>
+            </div>
         ))}
     </div>
   );

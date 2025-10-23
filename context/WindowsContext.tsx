@@ -5,7 +5,8 @@ import ResumeWindow from '../components/windows/ResumeWindow';
 import ProjectsWindow from '../components/windows/ProjectsWindow';
 import ChatWindow from '../components/windows/ChatWindow';
 import ProjectDetailWindow from '../components/windows/ProjectDetailWindow';
-import { WordIcon, FolderIcon, CmdIcon } from '../constants';
+import InternetExplorerWindow from '../components/windows/InternetExplorerWindow';
+import { WordIcon, FolderIcon, CmdIcon, InternetExplorerIcon } from '../constants';
 
 // Fix: Add missing `size` property to defaultProps to match the WindowInstance type.
 const WINDOW_COMPONENTS: Record<string, { Content: React.FC<any>, defaultProps: Omit<WindowInstance, 'isMinimized' | 'isMaximized' | 'position' | 'zIndex' | 'Content' | 'contentProps'> }> = {
@@ -14,6 +15,7 @@ const WINDOW_COMPONENTS: Record<string, { Content: React.FC<any>, defaultProps: 
   projects: { Content: ProjectsWindow, defaultProps: { id: 'projects', title: 'My Projects', icon: <FolderIcon />, size: { width: 500, height: 400 } } },
   chat: { Content: ChatWindow, defaultProps: { id: 'chat', title: 'Command Prompt', icon: <CmdIcon />, size: { width: 640, height: 400 } } },
   projectDetail: { Content: ProjectDetailWindow, defaultProps: { id: 'projectDetail', title: 'Project Details', icon: <FolderIcon />, size: { width: 640, height: 480 } } },
+  internetExplorer: { Content: InternetExplorerWindow, defaultProps: { id: 'internetExplorer', title: 'Internet Explorer', icon: <InternetExplorerIcon />, size: { width: 700, height: 500 } } },
 };
 
 const WindowsContext = createContext<WindowContextType | undefined>(undefined);
@@ -41,7 +43,11 @@ export const WindowsProvider: React.FC<{ children: ReactNode }> = ({ children })
   }, [getTopZIndex]);
 
   const openWindow = useCallback((id: string, props: any = {}) => {
-    const windowId = id === 'projectDetail' ? `projectDetail-${props.project.id}` : id;
+    const windowId = id === 'projectDetail' 
+        ? `projectDetail-${props.project.id}` 
+        : id === 'internetExplorer'
+        ? `internetExplorer-${encodeURIComponent(props.title)}`
+        : id;
 
     setWindows(prev => {
       const windowConfig = WINDOW_COMPONENTS[id];
@@ -60,7 +66,7 @@ export const WindowsProvider: React.FC<{ children: ReactNode }> = ({ children })
       const newWindow: WindowInstance = {
         ...windowConfig.defaultProps,
         id: windowId,
-        title: id === 'projectDetail' ? props.project.name : windowConfig.defaultProps.title,
+        title: id === 'projectDetail' ? props.project.name : (id === 'internetExplorer' ? props.title : windowConfig.defaultProps.title),
         isMinimized: false,
         isMaximized: false,
         position: { x: Math.random() * 200 + 50, y: Math.random() * 100 + 20 },
