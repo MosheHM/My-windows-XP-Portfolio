@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: portfolio-config
+data:
+  # LLM Service Configuration
+  llm.model.name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+  llm.max.length: "2048"
+  llm.temperature: "0.7"
+  
+  # File Service Configuration
+  file.max.size: "104857600"  # 100MB
+  
+  # Client Configuration
+  client.llm.url: "http://llm-service:8000"
+  client.file.url: "http://file-service:8001"

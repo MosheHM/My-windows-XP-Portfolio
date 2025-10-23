@@ -11,7 +11,8 @@
   "dependencies": {
     "react-dom": "^19.2.0",
     "react": "^19.2.0",
-    "@google/genai": "^1.26.0"
+    "axios": "^1.7.2",
+    "@tanstack/react-query": "^5.62.8"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
