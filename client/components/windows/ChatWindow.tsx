@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { generateChatResponse } from '../../services/geminiService';
+import { sendChatMessageStream, Message as APIMessage } from '../../services/chatService';
 
 interface Message {
   type: 'prompt' | 'response' | 'system';
@@ -26,18 +26,72 @@ const ChatWindow: React.FC = () => {
     if (!input.trim() || isLoading) return;
 
     const userMessage: Message = { type: 'prompt', text: input };
+    const currentInput = input;
     setHistory(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
 
+    // Build history for API
+    const apiHistory: APIMessage[] = history
+      .filter(msg => msg.type !== 'system')
+      .map(msg => ({
+        role: msg.type === 'prompt' ? 'user' : 'assistant',
+        content: msg.text,
+      }));
+
+    let streamedResponse = '';
+
     try {
-      const responseText = await generateChatResponse(input);
-      const responseMessage: Message = { type: 'response', text: responseText };
-      setHistory(prev => [...prev, responseMessage]);
+      await sendChatMessageStream(
+        {
+          message: currentInput,
+          history: apiHistory,
+          use_rag: true,
+        },
+        // onToken
+        (token: string) => {
+          streamedResponse += token;
+          // Update the last message in history with accumulated response
+          setHistory(prev => {
+            const newHistory = [...prev];
+            const lastMsg = newHistory[newHistory.length - 1];
+            if (lastMsg && lastMsg.type === 'response') {
+              lastMsg.text = streamedResponse;
+            } else {
+              newHistory.push({ type: 'response', text: streamedResponse });
+            }
+            return newHistory;
+          });
+        },
+        // onSources
+        (sources: string[]) => {
+          console.log('Sources:', sources);
+        },
+        // onError
+        (error: string) => {
+          console.error('Stream error:', error);
+          if (!streamedResponse) {
+            const errorMessage: Message = { 
+              type: 'response', 
+              text: 'An error occurred. Please check if the backend service is running.' 
+            };
+            setHistory(prev => [...prev, errorMessage]);
+          }
+        },
+        // onDone
+        () => {
+          setIsLoading(false);
+        }
+      );
     } catch (error) {
-      const errorMessage: Message = { type: 'response', text: 'An error occurred. Please try again.' };
-      setHistory(prev => [...prev, errorMessage]);
-    } finally {
+      console.error('Chat error:', error);
+      if (!streamedResponse) {
+        const errorMessage: Message = { 
+          type: 'response', 
+          text: 'An error occurred. Please check if the backend service is running.' 
+        };
+        setHistory(prev => [...prev, errorMessage]);
+      }
       setIsLoading(false);
     }
   };

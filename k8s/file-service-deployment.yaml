@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: file-service
+  labels:
+    app: file-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: file-service
+  template:
+    metadata:
+      labels:
+        app: file-service
+    spec:
+      containers:
+      - name: file-service
+        image: file-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8001
+          name: http
+        env:
+        - name: STORAGE_PATH
+          value: "/data/files"
+        - name: METADATA_PATH
+          value: "/data/metadata"
+        - name: MAX_FILE_SIZE
+          value: "104857600"  # 100MB in bytes
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: file-storage
+          mountPath: /data
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: file-storage
+        persistentVolumeClaim:
+          claimName: file-storage-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: file-service
+  labels:
+    app: file-service
+spec:
+  type: ClusterIP
+  selector:
+    app: file-service
+  ports:
+  - port: 8001
+    targetPort: 8001
+    protocol: TCP
+    name: http
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: file-storage-pvc
+spec:
+  accessModes:
+    - ReadWriteMany  # Multiple pods can access the same storage
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: standard

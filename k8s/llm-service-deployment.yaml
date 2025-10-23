@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-service
+  labels:
+    app: llm-service
+spec:
+  replicas: 1  # LLM service should be single instance due to model memory
+  selector:
+    matchLabels:
+      app: llm-service
+  template:
+    metadata:
+      labels:
+        app: llm-service
+    spec:
+      containers:
+      - name: llm-service
+        image: llm-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: LLM_MODEL_NAME
+          value: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+        - name: LLM_MAX_LENGTH
+          value: "2048"
+        - name: LLM_TEMPERATURE
+          value: "0.7"
+        - name: RAG_DATA_FILE
+          value: "/app/data/resume_data.json"
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2000m"
+          limits:
+            memory: "8Gi"
+            cpu: "4000m"
+        volumeMounts:
+        - name: model-cache
+          mountPath: /root/.cache
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 120
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 10
+      volumes:
+      - name: model-cache
+        persistentVolumeClaim:
+          claimName: llm-model-cache-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-service
+  labels:
+    app: llm-service
+spec:
+  type: ClusterIP
+  selector:
+    app: llm-service
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: llm-model-cache-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
