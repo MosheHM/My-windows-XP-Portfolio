@@ -2,31 +2,48 @@
 
 Get the Windows XP Portfolio up and running in minutes.
 
-## Option 1: Docker Compose (Recommended for Testing)
+## Option 1: Docker Compose (Recommended)
 
-The fastest way to run all services together:
+The fastest way to run all services together with nginx gateway:
+
+### Development Environment
 
 ```bash
 # Clone the repository
 git clone https://github.com/MosheHM/My-windows-XP-Portfolio.git
 cd My-windows-XP-Portfolio
 
-# Start all services
-docker-compose up --build
+# Start all services in development mode
+docker-compose -f docker-compose.dev.yml up --build
 
 # Wait for services to start (LLM service takes 2-3 minutes to download model)
 # Access the application at http://localhost
 ```
 
+### Production Environment
+
+```bash
+# Start all services in production mode
+docker-compose -f docker-compose.prod.yml up --build -d
+
+# Access the application at http://localhost
+```
+
 **What happens:**
-- Client starts on port 80
-- LLM service on port 8000 (downloads TinyLlama model ~2GB)
-- File service on port 8001
+- Nginx gateway starts on port 80 (single entry point)
+- Client accessible via nginx at http://localhost/
+- LLM API accessible at http://localhost/api/llm/
+- File API accessible at http://localhost/api/files/
+- LLM service downloads TinyLlama model (~2GB on first run)
 
 **Requirements:**
 - Docker and Docker Compose
 - 8GB+ RAM
 - 10GB+ disk space
+
+**Key Differences:**
+- **Development**: Source code mounted for hot reload, detailed logging
+- **Production**: Optimized builds, resource limits, no source mounting
 
 ## Option 2: Local Development
 
@@ -112,6 +129,24 @@ kubectl get pods -n portfolio
 ## Verification
 
 ### Check Services are Running
+
+With the nginx gateway:
+
+```bash
+# Gateway health check
+curl http://localhost/health
+
+# LLM Service (via gateway)
+curl http://localhost/api/llm/health
+
+# File Service (via gateway)
+curl http://localhost/api/files/health
+
+# Client
+curl http://localhost/
+```
+
+For local development (without gateway):
 
 ```bash
 # LLM Service
