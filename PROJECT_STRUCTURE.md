@@ -60,6 +60,11 @@ Complete overview of the Windows XP Portfolio monorepo structure.
 │       ├── .dockerignore           # Docker build exclusions
 │       └── README.md               # Service documentation
 │
+├── nginx/                          # Nginx API gateway
+│   ├── Dockerfile                  # Gateway Docker build
+│   ├── nginx.conf                  # Gateway configuration
+│   └── README.md                   # Gateway documentation
+│
 ├── k8s/                            # Kubernetes manifests
 │   ├── namespace.yaml              # Portfolio namespace
 │   ├── configmap.yaml              # Configuration values
@@ -70,11 +75,18 @@ Complete overview of the Windows XP Portfolio monorepo structure.
 │
 ├── scripts/                        # Automation scripts
 │   ├── deploy-k8s.sh              # Kubernetes deployment script
-│   └── dev-start.sh               # Local development starter
+│   ├── dev-start.sh               # Local development starter
+│   ├── start-dev.sh               # Start development environment
+│   └── start-prod.sh              # Start production environment
 │
-├── docker-compose.yml              # Local development with Docker
+├── docker-compose.yml              # Legacy compose (deprecated)
+├── docker-compose.dev.yml          # Development environment
+├── docker-compose.prod.yml         # Production environment
+├── .env.development                # Development configuration
+├── .env.production                 # Production configuration
 ├── README.md                       # Main documentation
 ├── QUICKSTART.md                   # Quick start guide
+├── ENVIRONMENTS.md                 # Environment guide
 ├── CONTRIBUTING.md                 # Contribution guidelines
 ├── PROJECT_STRUCTURE.md            # This file
 ├── .gitignore                      # Git exclusions
@@ -144,9 +156,28 @@ Complete overview of the Windows XP Portfolio monorepo structure.
 - CPU: 200-500m
 - Storage: Configurable PVC
 
+### Nginx Gateway
+
+**Technology Stack:**
+- Nginx (Alpine)
+
+**Key Features:**
+- Reverse proxy for all services
+- API routing (/api/llm, /api/files)
+- SSL/TLS ready
+- Compression and caching
+- Security headers
+- Health checks
+- SSE support for streaming
+- Large file upload support (100MB)
+
+**Resources:**
+- Memory: 128-256MB
+- CPU: 250-500m
+
 ## Data Flow
 
-### Chat Interaction
+### Chat Interaction (with Nginx Gateway)
 
 ```
 User Input (Client)
@@ -155,9 +186,11 @@ ChatWindow Component
     ↓
 chatService.sendChatMessageStream()
     ↓
-HTTP POST /chat/stream (SSE)
+HTTP POST /api/llm/chat/stream (SSE)
     ↓
-LLM Service main.py
+Nginx Gateway (proxy with SSE support)
+    ↓
+LLM Service main.py (/chat/stream)
     ↓
 llm_handler.generate_stream()
     ├→ rag_engine.search() (get context)
@@ -165,25 +198,31 @@ llm_handler.generate_stream()
     ↓
 SSE tokens streamed back
     ↓
+Nginx Gateway (passthrough)
+    ↓
 Client displays in real-time
 ```
 
-### File Upload
+### File Upload (with Nginx Gateway)
 
 ```
 User selects file (Client)
     ↓
 fileService.uploadFile()
     ↓
-HTTP POST /upload (multipart)
+HTTP POST /api/files/upload (multipart)
     ↓
-File Service main.py
+Nginx Gateway (large file support)
+    ↓
+File Service main.py (/upload)
     ├→ Validate file
     ├→ Generate UUID
     ├→ Save to storage
     └→ Save metadata
     ↓
 Return file metadata
+    ↓
+Nginx Gateway (passthrough)
     ↓
 Client displays confirmation
 ```
@@ -241,23 +280,45 @@ Client displays confirmation
 
 ## Deployment Options
 
-### 1. Docker Compose (Development)
+### 1. Docker Compose - Development
 
 **Pros:**
-- Easy setup
+- Easy setup with hot reload
 - All services in one command
-- Good for testing
+- Good for testing and iteration
+- Source code mounted for live changes
 
 **Cons:**
-- Not production-ready
-- Limited scaling
+- No resource limits
+- Not production-optimized
 
 **Usage:**
 ```bash
-docker-compose up
+docker compose -f docker-compose.dev.yml up
+# Or
+./scripts/start-dev.sh
 ```
 
-### 2. Local Development (Development)
+### 2. Docker Compose - Production
+
+**Pros:**
+- Production-ready setup
+- Resource limits configured
+- Optimized builds
+- Easy deployment
+
+**Cons:**
+- No auto-scaling
+- Single-host deployment
+
+**Usage:**
+```bash
+docker compose -f docker-compose.prod.yml up -d
+# Or
+./scripts/start-prod.sh
+```
+
+### 3. Local Development (Development)
 
 **Pros:**
 - Fast iteration
@@ -273,7 +334,7 @@ docker-compose up
 ./scripts/dev-start.sh
 ```
 
-### 3. Kubernetes (Production)
+### 4. Kubernetes (Production)
 
 **Pros:**
 - Production-ready
@@ -311,13 +372,16 @@ LLM Service (localhost:8000)
 File Service (localhost:8001)
 ```
 
-### Docker Compose
+### Docker Compose (Development & Production)
 
 ```
-Client (localhost:80)
+Client Request (localhost:80)
+    ↓
+Nginx Gateway (:80)
     ↓ (Docker network)
-llm-service:8000
-file-service:8001
+    ├── /api/llm/* → llm-service:8000
+    ├── /api/files/* → file-service:8001
+    └── /* → client:80
 ```
 
 ### Kubernetes
