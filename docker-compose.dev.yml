@@ -1,3 +1,11 @@
+# Docker Compose Development Environment
+# 
+# NOTE: Kubernetes is the recommended deployment method for production.
+# This Docker Compose configuration is primarily for local development and testing.
+# For production deployments, see k8s/ directory and run: ./scripts/deploy-k8s.sh
+#
+# Usage: docker-compose -f docker-compose.dev.yml up
+
 services:
   # LLM Service (Development)
   llm-service:

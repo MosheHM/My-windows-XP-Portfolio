@@ -2,9 +2,64 @@
 
 Get the Windows XP Portfolio up and running in minutes.
 
-## Option 1: Docker Compose (Recommended)
+## Option 1: Kubernetes (Recommended)
 
-The fastest way to run all services together with nginx gateway:
+The recommended way to deploy for production-ready infrastructure with scalability and high availability.
+
+### Automated Deployment
+
+```bash
+# Clone the repository
+git clone https://github.com/MosheHM/My-windows-XP-Portfolio.git
+cd My-windows-XP-Portfolio
+
+# Run the automated deployment script
+./scripts/deploy-k8s.sh
+
+# Follow the prompts to build images (optional) and deploy
+# The script will show you how to access the application
+```
+
+### Manual Deployment
+
+```bash
+# Using Kustomize (easiest)
+kubectl apply -k k8s/
+
+# Or deploy manually
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/configmap.yaml -n portfolio
+kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
+kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
+kubectl apply -f k8s/client-deployment.yaml -n portfolio
+kubectl apply -f k8s/nginx-gateway-deployment.yaml -n portfolio
+
+# Check status
+kubectl get pods -n portfolio
+
+# Access the application via port-forward
+kubectl port-forward service/nginx-gateway 8080:80 -n portfolio
+# Visit http://localhost:8080
+```
+
+**What happens:**
+- Nginx gateway deployed with 2 replicas (NodePort on 30080)
+- Client deployed with 2 replicas
+- LLM service with persistent model cache (10Gi PVC)
+- File service with 2 replicas and persistent storage (20Gi PVC)
+- All services communicate through the nginx gateway
+
+**Requirements:**
+- Kubernetes cluster (minikube, kind, GKE, EKS, AKS, etc.)
+- kubectl configured
+- 8GB+ RAM available for the cluster
+- 30GB+ storage for PVCs
+
+**See [k8s/README.md](k8s/README.md) for detailed documentation.**
+
+## Option 2: Docker Compose (Development/Testing)
+
+Good for local development and testing. Kubernetes is recommended for production.
 
 ### Development Environment
 
@@ -45,7 +100,7 @@ docker-compose -f docker-compose.prod.yml up --build -d
 - **Development**: Source code mounted for hot reload, detailed logging
 - **Production**: Optimized builds, resource limits, no source mounting
 
-## Option 2: Local Development
+## Option 3: Local Development
 
 Run services individually for development:
 
@@ -102,35 +157,28 @@ npm run dev
 
 Access at http://localhost:5173
 
-## Option 3: Kubernetes Deployment
-
-For production-like environment:
-
-```bash
-# Build images
-docker build -t portfolio-client:latest ./client
-docker build -t llm-service:latest ./services/llm-service
-docker build -t file-service:latest ./services/file-service
-
-# Deploy to Kubernetes
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/configmap.yaml -n portfolio
-kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
-kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
-kubectl apply -f k8s/client-deployment.yaml -n portfolio
-
-# Check status
-kubectl get pods -n portfolio
-
-# Access via NodePort
-# http://<node-ip>:30080
-```
-
 ## Verification
 
 ### Check Services are Running
 
-With the nginx gateway:
+**With Kubernetes:**
+
+```bash
+# Check all pods
+kubectl get pods -n portfolio
+
+# Gateway health check (via port-forward)
+kubectl port-forward service/nginx-gateway 8080:80 -n portfolio &
+curl http://localhost:8080/health
+
+# LLM Service (via gateway)
+curl http://localhost:8080/api/llm/health
+
+# File Service (via gateway)
+curl http://localhost:8080/api/files/health
+```
+
+**With Docker Compose (nginx gateway):**
 
 ```bash
 # Gateway health check
@@ -146,7 +194,7 @@ curl http://localhost/api/files/health
 curl http://localhost/
 ```
 
-For local development (without gateway):
+**For local development (without gateway):**
 
 ```bash
 # LLM Service
@@ -263,8 +311,21 @@ For production:
 - **First run:** LLM service downloads model (~2-3 minutes)
 - **Subsequent runs:** Much faster (model is cached)
 - **Development:** Use docker-compose for quick iteration
-- **Production:** Use Kubernetes for scalability
+- **Production:** Use Kubernetes for scalability and high availability
+- **Staging/Testing:** Kubernetes recommended for production-like environment
 - **GPU:** If available, LLM service auto-detects and uses it
 - **Model size:** TinyLlama is lightweight. Can upgrade to Llama 2 or Mistral for better quality
+
+## Deployment Comparison
+
+| Feature | Kubernetes | Docker Compose | Local Dev |
+|---------|-----------|----------------|-----------|
+| **Best for** | Production | Dev/Testing | Development |
+| **Scalability** | ✅ Excellent | ❌ Limited | ❌ None |
+| **High Availability** | ✅ Built-in | ❌ None | ❌ None |
+| **Resource Management** | ✅ Full control | ⚠️ Basic | ❌ Manual |
+| **Setup Complexity** | ⚠️ Moderate | ✅ Easy | ✅ Easy |
+| **Rolling Updates** | ✅ Zero downtime | ❌ Requires restart | ❌ Manual |
+| **Load Balancing** | ✅ Automatic | ❌ None | ❌ None |
 
 Enjoy your Windows XP Portfolio! 🎉
