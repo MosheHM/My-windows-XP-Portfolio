@@ -22,6 +22,8 @@ jobs:
     name: Execute ${{ github.event.inputs.action }}
     runs-on: ubuntu-latest
     if: github.event.inputs.action == 'deploy'
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -78,6 +80,7 @@ jobs:
     name: Rollback deployment
     runs-on: ubuntu-latest
     if: github.event.inputs.action == 'rollback'
+    permissions: {}
 
     steps:
       - name: Set up SSH
@@ -128,6 +131,7 @@ jobs:
     name: Restart services
     runs-on: ubuntu-latest
     if: github.event.inputs.action == 'restart'
+    permissions: {}
 
     steps:
       - name: Set up SSH
