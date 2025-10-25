@@ -227,9 +227,9 @@ kubectl scale deployment/file-service --replicas=3 -n portfolio
 kubectl delete namespace portfolio
 ```
 
-## Differences from Docker Compose
+## Key Features
 
-The Kubernetes deployment provides several advantages over Docker Compose:
+The Kubernetes deployment provides production-grade capabilities:
 
 1. **Scalability**: Easy horizontal scaling of services
 2. **High Availability**: Multiple replicas with automatic failover
@@ -239,4 +239,4 @@ The Kubernetes deployment provides several advantages over Docker Compose:
 6. **Persistent Storage**: Managed by Kubernetes PVCs
 7. **Service Discovery**: Built-in DNS for service communication
 8. **Load Balancing**: Automatic load balancing across pods
-9. **Production Ready**: Suitable for production deployments
+9. **Production Ready**: Enterprise-grade deployment platform

@@ -14,9 +14,7 @@ This monorepo contains:
 │   └── file-service/         # Python FastAPI file storage service
 ├── nginx/                    # Nginx API gateway configuration
 ├── k8s/                      # Kubernetes manifests
-├── docker-compose.dev.yml    # Development environment
-├── docker-compose.prod.yml   # Production environment
-└── docker-compose.yml        # Legacy setup (deprecated)
+└── scripts/                  # Deployment and utility scripts
 ```
 
 ### API Gateway Architecture
@@ -77,9 +75,9 @@ LLM Service    File Service      Client
 
 ## 🚀 Quick Start
 
-### Recommended: Kubernetes Deployment
+### Kubernetes Deployment
 
-For production deployments and scalable infrastructure, Kubernetes is the recommended approach.
+Kubernetes is the deployment method for this application, providing scalability, high availability, and production-ready features.
 
 #### Prerequisites
 - Kubernetes cluster (minikube, kind, GKE, EKS, AKS, etc.)
@@ -114,51 +112,13 @@ kubectl port-forward service/nginx-gateway 8080:80 -n portfolio
 
 See the [Kubernetes README](k8s/README.md) for detailed deployment instructions, troubleshooting, and production best practices.
 
-### Alternative: Docker Compose
-
-For local development and testing, you can use Docker Compose as an alternative to Kubernetes.
-
-#### Prerequisites
-- Docker and Docker Compose installed
-- At least 8GB RAM available for LLM service
-- 10GB+ free disk space for model downloads
-
-#### Development Environment
-
-```bash
-# Build and start all services in development mode
-docker-compose -f docker-compose.dev.yml up --build
-
-# Or run in detached mode
-docker-compose -f docker-compose.dev.yml up -d
-
-# Check logs
-docker-compose -f docker-compose.dev.yml logs -f
-
-# Stop all services
-docker-compose -f docker-compose.dev.yml down
-```
-
-#### Production Environment
-
-```bash
-# Build and start all services in production mode
-docker-compose -f docker-compose.prod.yml up --build -d
-
-# Check logs
-docker-compose -f docker-compose.prod.yml logs -f
-
-# Stop all services
-docker-compose -f docker-compose.prod.yml down
-```
-
 ### Access the Application
-- **Application**: http://localhost (Docker Compose) or http://localhost:8080 (K8s port-forward)
-- **LLM API**: http://localhost/api/llm/*
-- **File API**: http://localhost/api/files/*
-- **Health Check**: http://localhost/health
+- **Application**: http://localhost:8080 (K8s port-forward) or http://<node-ip>:30080 (NodePort)
+- **LLM API**: http://localhost:8080/api/llm/*
+- **File API**: http://localhost:8080/api/files/*
+- **Health Check**: http://localhost:8080/health
 
-**Note**: All services are accessed through the Nginx gateway. Direct service ports (8000, 8001) are no longer exposed externally.
+**Note**: All services are accessed through the Nginx gateway. Direct service ports (8000, 8001) are not exposed externally.
 
 ## 🛠️ Local Development
 
@@ -331,7 +291,7 @@ The project supports separate environment configurations:
 
 ### Deployment Methods
 
-**Kubernetes (Recommended for Production)**:
+**Kubernetes**:
 ```bash
 # Deploy to Kubernetes cluster
 ./scripts/deploy-k8s.sh
@@ -340,13 +300,15 @@ The project supports separate environment configurations:
 kubectl apply -k k8s/
 ```
 
-**Docker Compose (Development/Testing)**:
+**Local Development** (individual services):
 ```bash
-# Development: Includes source code mounting for hot reload
-docker-compose -f docker-compose.dev.yml up
+# Use the development helper script
+./scripts/dev-start.sh
 
-# Production: Optimized with resource limits and no source mounting
-docker-compose -f docker-compose.prod.yml up
+# This will set up and start:
+# - LLM Service on http://localhost:8000
+# - File Service on http://localhost:8001  
+# - Client on http://localhost:5173
 ```
 
 ## 🎯 Features
@@ -401,7 +363,7 @@ app.add_middleware(
 
 1. Create a feature branch
 2. Make your changes
-3. Test locally with docker-compose
+3. Test locally (use ./scripts/dev-start.sh or deploy to K8s)
 4. Submit a pull request
 
 ## 📄 License
@@ -421,5 +383,4 @@ For issues or questions:
 - Initial monorepo setup
 - LLM service with RAG
 - File service
-- Kubernetes manifests
-- Docker Compose setup
+- Kubernetes deployment with nginx gateway
