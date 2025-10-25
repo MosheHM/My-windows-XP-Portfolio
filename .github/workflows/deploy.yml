@@ -1,0 +1,83 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual triggers
+
+jobs:
+  deploy:
+    name: Deploy to moshe-makies.dev
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP << 'ENDSSH'
+            set -e
+
+            echo "🚀 Starting deployment to moshe-makies.dev..."
+
+            # Navigate to project directory or clone if doesn't exist
+            if [ -d "/opt/portfolio" ]; then
+              cd /opt/portfolio
+              echo "📦 Pulling latest changes..."
+              git pull origin main
+            else
+              echo "📦 Cloning repository..."
+              git clone https://github.com/MosheHM/My-windows-XP-Portfolio.git /opt/portfolio
+              cd /opt/portfolio
+            fi
+
+            # Stop existing containers
+            echo "🛑 Stopping existing containers..."
+            docker compose -f docker-compose.prod.yml down || true
+
+            # Pull latest images and rebuild
+            echo "🔨 Building Docker images..."
+            docker compose -f docker-compose.prod.yml build --no-cache
+
+            # Start services
+            echo "▶️  Starting services..."
+            docker compose -f docker-compose.prod.yml up -d
+
+            # Wait for services to be healthy
+            echo "⏳ Waiting for services to be ready..."
+            sleep 10
+
+            # Check service health
+            if curl -f http://localhost/health > /dev/null 2>&1; then
+              echo "✅ Deployment successful!"
+              echo "🌐 Application is running at http://moshe-makies.dev"
+            else
+              echo "⚠️  Warning: Health check failed, check logs with:"
+              echo "   docker compose -f /opt/portfolio/docker-compose.prod.yml logs"
+            fi
+
+            # Cleanup old images
+            echo "🧹 Cleaning up old Docker images..."
+            docker image prune -f
+
+          ENDSSH
+
+      - name: Verify deployment
+        run: |
+          echo "✅ Deployment completed!"
+          echo "🌐 Visit: http://moshe-makies.dev"

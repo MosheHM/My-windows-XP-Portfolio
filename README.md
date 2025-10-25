@@ -240,6 +240,35 @@ kubectl port-forward service/file-service 8001:8001 -n portfolio
 kubectl delete namespace portfolio
 ```
 
+## 🚀 Production Deployment (Auto-Deploy)
+
+This repository is configured with GitHub Actions for automatic deployment to production.
+
+### Quick Setup
+
+1. **Prepare your server** (Ubuntu/Debian at 129.159.130.84):
+   ```bash
+   # Copy and run the setup script on your server
+   ./scripts/setup-server.sh
+   ```
+
+2. **Configure GitHub Secrets:**
+   - `SSH_PRIVATE_KEY` - Your SSH private key for server access
+   - `SERVER_IP` - Your server IP (129.159.130.84)
+   - `SERVER_USER` - SSH username (e.g., ubuntu)
+   - `DOMAIN` - Your domain (moshe-makies.dev)
+
+3. **Deploy:**
+   ```bash
+   # Automatic: Push to main branch
+   git push origin main
+   
+   # Manual: Use deployment script
+   ./scripts/deploy-remote.sh
+   ```
+
+📖 **For detailed deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md)**
+
 ## 📝 API Documentation
 
 ### LLM Service API
