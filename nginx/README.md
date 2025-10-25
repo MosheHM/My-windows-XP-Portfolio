@@ -48,21 +48,24 @@ The main configuration file that defines:
 
 ## Usage
 
-### With Docker Compose
+### With Kubernetes
 
-The nginx gateway is automatically started with docker-compose:
+The nginx gateway is deployed as part of the Kubernetes cluster:
 
 ```bash
-# Development
-docker-compose -f docker-compose.dev.yml up
+# Automated deployment
+./scripts/deploy-k8s.sh
 
-# Production
-docker-compose -f docker-compose.prod.yml up
+# Or using Kustomize
+kubectl apply -k k8s/
+
+# Access via port-forward
+kubectl port-forward service/nginx-gateway 8080:80 -n portfolio
 ```
 
-### Standalone
+### Standalone (Development/Testing)
 
-Build and run the nginx container:
+Build and run the nginx container for testing:
 
 ```bash
 cd nginx

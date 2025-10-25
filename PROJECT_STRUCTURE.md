@@ -75,18 +75,12 @@ Complete overview of the Windows XP Portfolio monorepo structure.
 │
 ├── scripts/                        # Automation scripts
 │   ├── deploy-k8s.sh              # Kubernetes deployment script
-│   ├── dev-start.sh               # Local development starter
-│   ├── start-dev.sh               # Start development environment
-│   └── start-prod.sh              # Start production environment
+│   └── dev-start.sh               # Local development starter
 │
-├── docker-compose.yml              # Legacy compose (deprecated)
-├── docker-compose.dev.yml          # Development environment
-├── docker-compose.prod.yml         # Production environment
 ├── .env.development                # Development configuration
 ├── .env.production                 # Production configuration
 ├── README.md                       # Main documentation
 ├── QUICKSTART.md                   # Quick start guide
-├── ENVIRONMENTS.md                 # Environment guide
 ├── CONTRIBUTING.md                 # Contribution guidelines
 ├── PROJECT_STRUCTURE.md            # This file
 ├── .gitignore                      # Git exclusions
@@ -280,76 +274,58 @@ Client displays confirmation
 
 ## Deployment Options
 
-### 1. Docker Compose - Development
+### 1. Kubernetes (Production)
 
 **Pros:**
-- Easy setup with hot reload
-- All services in one command
-- Good for testing and iteration
-- Source code mounted for live changes
+- Production-grade deployment
+- Auto-scaling and high availability
+- Resource management (CPU/memory limits)
+- Rolling updates with zero downtime
+- Load balancing
+- Persistent storage (PVCs)
+- Health checks (liveness/readiness probes)
 
 **Cons:**
-- No resource limits
-- Not production-optimized
+- Requires Kubernetes cluster
+- More complex initial setup
 
 **Usage:**
 ```bash
-docker compose -f docker-compose.dev.yml up
-# Or
-./scripts/start-dev.sh
+# Automated deployment
+./scripts/deploy-k8s.sh
+
+# Or using Kustomize
+kubectl apply -k k8s/
+
+# Or manual deployment
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/configmap.yaml -n portfolio
+kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
+kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
+kubectl apply -f k8s/client-deployment.yaml -n portfolio
+kubectl apply -f k8s/nginx-gateway-deployment.yaml -n portfolio
 ```
 
-### 2. Docker Compose - Production
+See [k8s/README.md](k8s/README.md) for detailed documentation.
 
-**Pros:**
-- Production-ready setup
-- Resource limits configured
-- Optimized builds
-- Easy deployment
-
-**Cons:**
-- No auto-scaling
-- Single-host deployment
-
-**Usage:**
-```bash
-docker compose -f docker-compose.prod.yml up -d
-# Or
-./scripts/start-prod.sh
-```
-
-### 3. Local Development (Development)
+### 2. Local Development
 
 **Pros:**
 - Fast iteration
 - Hot reload
 - Easy debugging
+- No cluster required
 
 **Cons:**
 - Manual setup
-- Multiple terminals
+- Multiple terminals needed
+- No production features
 
 **Usage:**
 ```bash
 ./scripts/dev-start.sh
 ```
 
-### 4. Kubernetes (Production)
-
-**Pros:**
-- Production-ready
-- Auto-scaling
-- High availability
-- Resource management
-
-**Cons:**
-- Complex setup
-- Requires cluster
-
-**Usage:**
-```bash
-./scripts/deploy-k8s.sh
-```
 
 ## Storage Requirements
 
@@ -372,27 +348,21 @@ LLM Service (localhost:8000)
 File Service (localhost:8001)
 ```
 
-### Docker Compose (Development & Production)
-
-```
-Client Request (localhost:80)
-    ↓
-Nginx Gateway (:80)
-    ↓ (Docker network)
-    ├── /api/llm/* → llm-service:8000
-    ├── /api/files/* → file-service:8001
-    └── /* → client:80
-```
-
 ### Kubernetes
 
 ```
-Client NodePort (30080)
-    ↓ (Kubernetes service mesh)
-llm-service ClusterIP (8000)
-file-service ClusterIP (8001)
+Client Request (NodePort :30080)
     ↓
-Pods (with PVCs)
+Nginx Gateway Service
+    ↓ (Kubernetes service mesh)
+    ├── /api/llm/* → llm-service:8000 (ClusterIP)
+    ├── /api/files/* → file-service:8001 (ClusterIP)
+    └── /* → client-service:80 (ClusterIP)
+    ↓
+Pods with:
+- Health checks (liveness/readiness probes)
+- Resource limits (CPU/memory)
+- Persistent volumes (PVCs)
 ```
 
 ## Security Considerations

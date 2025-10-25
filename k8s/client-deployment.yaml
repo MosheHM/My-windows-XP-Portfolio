@@ -23,9 +23,9 @@ spec:
           name: http
         env:
         - name: VITE_LLM_SERVICE_URL
-          value: "http://llm-service:8000"
+          value: "/api/llm"
         - name: VITE_FILE_SERVICE_URL
-          value: "http://file-service:8001"
+          value: "/api/files"
         resources:
           requests:
             memory: "128Mi"
@@ -53,12 +53,11 @@ metadata:
   labels:
     app: portfolio-client
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: portfolio-client
   ports:
   - port: 80
     targetPort: 80
-    nodePort: 30080
     protocol: TCP
     name: http
