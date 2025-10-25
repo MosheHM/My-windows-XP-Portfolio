@@ -1,0 +1,161 @@
+name: Manual Deployment & Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Deployment action'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+          - deploy
+          - rollback
+          - restart
+      branch:
+        description: 'Branch to deploy (for deploy action)'
+        required: false
+        default: 'main'
+
+jobs:
+  deploy:
+    name: Execute ${{ github.event.inputs.action }}
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'deploy'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          BRANCH: ${{ github.event.inputs.branch }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP << 'ENDSSH'
+            set -e
+
+            echo "🚀 Manual deployment initiated..."
+            echo "📌 Branch: $BRANCH"
+
+            cd /opt/portfolio
+
+            # Pull latest changes from specified branch
+            git fetch origin
+            git checkout $BRANCH
+            git pull origin $BRANCH
+
+            # Stop containers
+            docker compose -f docker-compose.prod.yml down
+
+            # Rebuild and start
+            docker compose -f docker-compose.prod.yml build --no-cache
+            docker compose -f docker-compose.prod.yml up -d
+
+            # Wait and verify
+            sleep 10
+            if curl -f http://localhost/health > /dev/null 2>&1; then
+              echo "✅ Deployment successful!"
+            else
+              echo "❌ Deployment may have issues, check logs"
+              exit 1
+            fi
+
+            docker image prune -f
+          ENDSSH
+
+  rollback:
+    name: Rollback deployment
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'rollback'
+
+    steps:
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Rollback on server
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP << 'ENDSSH'
+            set -e
+
+            echo "⏪ Rolling back deployment..."
+
+            cd /opt/portfolio
+
+            # Get previous commit
+            CURRENT_COMMIT=$(git rev-parse HEAD)
+            PREVIOUS_COMMIT=$(git rev-parse HEAD^)
+
+            echo "Current commit: $CURRENT_COMMIT"
+            echo "Rolling back to: $PREVIOUS_COMMIT"
+
+            # Rollback to previous commit
+            git reset --hard $PREVIOUS_COMMIT
+
+            # Rebuild and restart
+            docker compose -f docker-compose.prod.yml down
+            docker compose -f docker-compose.prod.yml build --no-cache
+            docker compose -f docker-compose.prod.yml up -d
+
+            # Wait and verify
+            sleep 10
+            if curl -f http://localhost/health > /dev/null 2>&1; then
+              echo "✅ Rollback successful!"
+            else
+              echo "❌ Rollback may have issues, check logs"
+              exit 1
+            fi
+          ENDSSH
+
+  restart:
+    name: Restart services
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'restart'
+
+    steps:
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Restart services on server
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_IP << 'ENDSSH'
+            set -e
+
+            echo "🔄 Restarting services..."
+
+            cd /opt/portfolio
+            docker compose -f docker-compose.prod.yml restart
+
+            # Wait and verify
+            sleep 10
+            if curl -f http://localhost/health > /dev/null 2>&1; then
+              echo "✅ Services restarted successfully!"
+            else
+              echo "❌ Restart may have issues, check logs"
+              exit 1
+            fi
+          ENDSSH
