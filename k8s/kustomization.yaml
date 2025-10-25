@@ -10,6 +10,8 @@ resources:
   - file-service-deployment.yaml
   - client-deployment.yaml
   - nginx-gateway-deployment.yaml
+  # Optional: Uncomment to use Ingress instead of NodePort
+  # - ingress-example.yaml
 
 # Optional: Add common labels to all resources
 commonLabels:

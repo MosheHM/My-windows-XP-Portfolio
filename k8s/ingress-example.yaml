@@ -1,0 +1,54 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: portfolio-ingress
+  annotations:
+    # For nginx ingress controller
+    kubernetes.io/ingress.class: nginx
+    # For cert-manager (SSL/TLS)
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    # For better handling of large uploads
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    # For SSE streaming support
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  # Uncomment for SSL/TLS
+  # tls:
+  # - hosts:
+  #   - portfolio.yourdomain.com
+  #   secretName: portfolio-tls
+  rules:
+  - host: portfolio.local  # Change to your domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx-gateway
+            port:
+              number: 80
+---
+# Example: Ingress for direct access without custom domain (using IP)
+# Note: Not all ingress controllers support this
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: portfolio-ingress-ip
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx-gateway
+            port:
+              number: 80
