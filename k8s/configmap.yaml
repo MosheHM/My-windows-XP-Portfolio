@@ -11,6 +11,6 @@ data:
   # File Service Configuration
   file.max.size: "104857600"  # 100MB
   
-  # Client Configuration
-  client.llm.url: "http://llm-service:8000"
-  client.file.url: "http://file-service:8001"
+  # Client Configuration (via nginx gateway)
+  client.llm.url: "/api/llm"
+  client.file.url: "/api/files"

@@ -75,14 +75,55 @@ LLM Service    File Service      Client
   - Health checks
 - **Port**: 80
 
-## 🐳 Quick Start with Docker Compose
+## 🚀 Quick Start
 
-### Prerequisites
+### Recommended: Kubernetes Deployment
+
+For production deployments and scalable infrastructure, Kubernetes is the recommended approach.
+
+#### Prerequisites
+- Kubernetes cluster (minikube, kind, GKE, EKS, AKS, etc.)
+- kubectl configured to access your cluster
+- At least 8GB RAM available for the LLM service
+- 10GB+ free disk space for model downloads
+
+#### Deploy to Kubernetes
+
+```bash
+# Automated deployment (recommended)
+./scripts/deploy-k8s.sh
+
+# Or using Kustomize
+kubectl apply -k k8s/
+
+# Or manual deployment
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/configmap.yaml -n portfolio
+kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
+kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
+kubectl apply -f k8s/client-deployment.yaml -n portfolio
+kubectl apply -f k8s/nginx-gateway-deployment.yaml -n portfolio
+
+# Check status
+kubectl get pods -n portfolio
+
+# Access the application
+kubectl port-forward service/nginx-gateway 8080:80 -n portfolio
+# Then visit http://localhost:8080
+```
+
+See the [Kubernetes README](k8s/README.md) for detailed deployment instructions, troubleshooting, and production best practices.
+
+### Alternative: Docker Compose
+
+For local development and testing, you can use Docker Compose as an alternative to Kubernetes.
+
+#### Prerequisites
 - Docker and Docker Compose installed
 - At least 8GB RAM available for LLM service
 - 10GB+ free disk space for model downloads
 
-### Development Environment
+#### Development Environment
 
 ```bash
 # Build and start all services in development mode
@@ -98,7 +139,7 @@ docker-compose -f docker-compose.dev.yml logs -f
 docker-compose -f docker-compose.dev.yml down
 ```
 
-### Production Environment
+#### Production Environment
 
 ```bash
 # Build and start all services in production mode
@@ -112,12 +153,12 @@ docker-compose -f docker-compose.prod.yml down
 ```
 
 ### Access the Application
-- **Application**: http://localhost
+- **Application**: http://localhost (Docker Compose) or http://localhost:8080 (K8s port-forward)
 - **LLM API**: http://localhost/api/llm/*
 - **File API**: http://localhost/api/files/*
 - **Health Check**: http://localhost/health
 
-**Note**: All services are now accessed through the Nginx gateway. Direct service ports (8000, 8001) are no longer exposed externally.
+**Note**: All services are accessed through the Nginx gateway. Direct service ports (8000, 8001) are no longer exposed externally.
 
 ## 🛠️ Local Development
 
@@ -177,68 +218,34 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8001
 
 ## ☸️ Kubernetes Deployment
 
-### Prerequisites
-- Kubernetes cluster (minikube, kind, or cloud provider)
-- kubectl configured
-- Docker images built and available
+Kubernetes is the **recommended deployment method** for this application. It provides scalability, high availability, and production-ready features.
 
-### Build Docker Images
+For detailed Kubernetes deployment instructions, troubleshooting, and best practices, see the **[Kubernetes README](k8s/README.md)**.
 
-```bash
-# Build client image
-cd client
-docker build -t portfolio-client:latest .
-
-# Build LLM service image
-cd ../services/llm-service
-docker build -t llm-service:latest .
-
-# Build file service image
-cd ../file-service
-docker build -t file-service:latest .
-```
-
-### Deploy to Kubernetes
+### Quick Deploy
 
 ```bash
-# Create namespace
-kubectl apply -f k8s/namespace.yaml
+# Automated deployment (easiest method)
+./scripts/deploy-k8s.sh
 
-# Apply ConfigMap
-kubectl apply -f k8s/configmap.yaml -n portfolio
-
-# Deploy services
-kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
-kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
-kubectl apply -f k8s/client-deployment.yaml -n portfolio
-
-# Check status
-kubectl get pods -n portfolio
-kubectl get services -n portfolio
+# Or using Kustomize
+kubectl apply -k k8s/
 
 # Access the application
-# The client is exposed via NodePort on port 30080
-# Access at: http://<node-ip>:30080
+kubectl port-forward service/nginx-gateway 8080:80 -n portfolio
+# Visit http://localhost:8080
 ```
 
-### Useful Commands
+### Key Features
 
-```bash
-# View logs
-kubectl logs -f deployment/llm-service -n portfolio
-kubectl logs -f deployment/file-service -n portfolio
-kubectl logs -f deployment/portfolio-client -n portfolio
+- **API Gateway**: Nginx-based gateway for routing and load balancing
+- **High Availability**: Multiple replicas for client and file service
+- **Persistent Storage**: Dedicated PVCs for model cache and file storage
+- **Resource Management**: CPU and memory limits/requests
+- **Health Checks**: Liveness and readiness probes
+- **Scalability**: Easy horizontal scaling with kubectl
 
-# Scale services
-kubectl scale deployment/portfolio-client --replicas=3 -n portfolio
-
-# Port forward for testing
-kubectl port-forward service/llm-service 8000:8000 -n portfolio
-kubectl port-forward service/file-service 8001:8001 -n portfolio
-
-# Delete all resources
-kubectl delete namespace portfolio
-```
+See [k8s/README.md](k8s/README.md) for complete documentation.
 
 ## 📝 API Documentation
 
@@ -322,15 +329,23 @@ The project supports separate environment configurations:
 #### Nginx Gateway
 - `NGINX_PORT`: Gateway port (default: 80)
 
-### Switching Between Environments
+### Deployment Methods
 
-**Development**: Includes source code mounting for hot reload
+**Kubernetes (Recommended for Production)**:
 ```bash
-docker-compose -f docker-compose.dev.yml up
+# Deploy to Kubernetes cluster
+./scripts/deploy-k8s.sh
+
+# Or using Kustomize
+kubectl apply -k k8s/
 ```
 
-**Production**: Optimized with resource limits and no source mounting
+**Docker Compose (Development/Testing)**:
 ```bash
+# Development: Includes source code mounting for hot reload
+docker-compose -f docker-compose.dev.yml up
+
+# Production: Optimized with resource limits and no source mounting
 docker-compose -f docker-compose.prod.yml up
 ```
 
