@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Remote deployment script for moshe-makies.dev (129.159.130.84)
-# This script deploys the Windows XP Portfolio to the production server
+# This script deploys the Windows XP Portfolio to the production server using Kubernetes
 
 set -e
 
@@ -10,6 +10,7 @@ SERVER_IP="${SERVER_IP:-129.159.130.84}"
 SERVER_USER="${SERVER_USER:-ubuntu}"
 DEPLOY_PATH="/opt/portfolio"
 DOMAIN="moshe-makies.dev"
+NAMESPACE="portfolio"
 
 echo "🚀 Deploying Windows XP Portfolio to $DOMAIN"
 echo "=========================================================="
@@ -33,6 +34,7 @@ fi
 echo "✅ SSH key found"
 echo "📡 Server: $SERVER_USER@$SERVER_IP"
 echo "📁 Deploy path: $DEPLOY_PATH"
+echo "☸️  Deployment method: Kubernetes"
 echo ""
 
 # Deploy to server
@@ -57,32 +59,47 @@ ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_IP" << 
         cd $DEPLOY_PATH
     fi
     
-    # Stop existing containers
-    echo "🛑 Stopping existing containers..."
-    docker compose -f docker-compose.prod.yml down 2>/dev/null || true
-    
-    # Pull and rebuild images
+    # Build Docker images
     echo "🔨 Building Docker images..."
-    docker compose -f docker-compose.prod.yml build --no-cache
+    docker build -t portfolio-client:latest ./client
+    docker build -t llm-service:latest ./services/llm-service
+    docker build -t file-service:latest ./services/file-service
     
-    # Start services
-    echo "▶️  Starting services..."
-    docker compose -f docker-compose.prod.yml up -d
+    # Deploy to Kubernetes
+    echo "☸️  Deploying to Kubernetes..."
+    
+    # Create/update namespace
+    kubectl apply -f k8s/namespace.yaml
+    
+    # Apply ConfigMap
+    kubectl apply -f k8s/configmap.yaml -n $NAMESPACE
+    
+    # Deploy services
+    echo "  Deploying LLM service..."
+    kubectl apply -f k8s/llm-service-deployment.yaml -n $NAMESPACE
+    
+    echo "  Deploying file service..."
+    kubectl apply -f k8s/file-service-deployment.yaml -n $NAMESPACE
+    
+    echo "  Deploying client..."
+    kubectl apply -f k8s/client-deployment.yaml -n $NAMESPACE
     
     # Wait for services to be ready
     echo "⏳ Waiting for services to be ready..."
-    sleep 15
+    kubectl wait --for=condition=available --timeout=300s deployment/portfolio-client -n $NAMESPACE 2>/dev/null || true
+    kubectl wait --for=condition=available --timeout=300s deployment/file-service -n $NAMESPACE 2>/dev/null || true
     
-    # Check health
-    echo "🏥 Checking service health..."
-    if curl -f http://localhost/health > /dev/null 2>&1; then
-        echo "✅ All services are healthy!"
-    else
-        echo "⚠️  Health check failed. Checking logs..."
-        docker compose -f $DEPLOY_PATH/docker-compose.prod.yml ps
-    fi
+    # Check deployment status
+    echo "🏥 Checking deployment status..."
+    kubectl get pods -n $NAMESPACE
+    echo ""
+    kubectl get svc -n $NAMESPACE
+    
+    # Get access information
+    NODE_PORT=\$(kubectl get svc client-service -n $NAMESPACE -o jsonpath='{.spec.ports[0].nodePort}')
     
     # Cleanup
+    echo ""
     echo "🧹 Cleaning up old Docker images..."
     docker image prune -af --filter "until=24h"
     
@@ -91,13 +108,14 @@ ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_IP" << 
     echo "✅ Deployment completed successfully!"
     echo "=========================================================="
     echo ""
-    echo "🌐 Application URL: http://$DOMAIN"
-    echo "🌐 Direct IP: http://$SERVER_IP"
+    echo "🌐 Application URL: http://$DOMAIN:\$NODE_PORT"
+    echo "🌐 Direct IP: http://$SERVER_IP:\$NODE_PORT"
     echo ""
     echo "Useful commands:"
-    echo "  View logs:    docker compose -f $DEPLOY_PATH/docker-compose.prod.yml logs -f"
-    echo "  Stop:         docker compose -f $DEPLOY_PATH/docker-compose.prod.yml down"
-    echo "  Restart:      docker compose -f $DEPLOY_PATH/docker-compose.prod.yml restart"
+    echo "  View pods:    kubectl get pods -n $NAMESPACE"
+    echo "  View logs:    kubectl logs -f deployment/portfolio-client -n $NAMESPACE"
+    echo "  Scale:        kubectl scale deployment/portfolio-client --replicas=3 -n $NAMESPACE"
+    echo "  Restart:      kubectl rollout restart deployment/portfolio-client -n $NAMESPACE"
     echo ""
 ENDSSH
 

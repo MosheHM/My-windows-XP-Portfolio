@@ -240,15 +240,16 @@ kubectl port-forward service/file-service 8001:8001 -n portfolio
 kubectl delete namespace portfolio
 ```
 
-## 🚀 Production Deployment (Auto-Deploy)
+## 🚀 Production Deployment (Auto-Deploy with Kubernetes)
 
-This repository is configured with GitHub Actions for automatic deployment to production.
+This repository is configured with GitHub Actions for automatic deployment to production using Kubernetes.
 
 ### Quick Setup
 
 1. **Prepare your server** (Ubuntu/Debian at 129.159.130.84):
    ```bash
    # Copy and run the setup script on your server
+   # This installs Docker, kubectl, and k3s (lightweight Kubernetes)
    ./scripts/setup-server.sh
    ```
 

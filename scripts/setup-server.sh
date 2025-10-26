@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Server Setup Script for moshe-makies.dev (129.159.130.84)
-# Run this script on your production server to prepare it for deployment
+# Run this script on your production server to prepare it for Kubernetes deployment
 
 set -e
 
@@ -32,15 +32,6 @@ else
     echo "✅ Docker already installed"
 fi
 
-# Install Docker Compose plugin if not installed
-if ! docker compose version &> /dev/null; then
-    echo "🐳 Installing Docker Compose..."
-    sudo apt install docker-compose-plugin -y
-    echo "✅ Docker Compose installed"
-else
-    echo "✅ Docker Compose already installed"
-fi
-
 # Install Git if not installed
 if ! command -v git &> /dev/null; then
     echo "📥 Installing Git..."
@@ -59,6 +50,32 @@ else
     echo "✅ curl already installed"
 fi
 
+# Install kubectl if not installed
+if ! command -v kubectl &> /dev/null; then
+    echo "☸️  Installing kubectl..."
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+    rm kubectl
+    echo "✅ kubectl installed"
+else
+    echo "✅ kubectl already installed"
+fi
+
+# Install k3s (lightweight Kubernetes) if not installed
+if ! command -v k3s &> /dev/null; then
+    echo "☸️  Installing k3s (Lightweight Kubernetes)..."
+    curl -sfL https://get.k3s.io | sh -
+    
+    # Setup kubeconfig for non-root user
+    mkdir -p $HOME/.kube
+    sudo cp /etc/rancher/k3s/k3s.yaml $HOME/.kube/config
+    sudo chown $USER:$USER $HOME/.kube/config
+    
+    echo "✅ k3s installed"
+else
+    echo "✅ k3s already installed"
+fi
+
 # Create deployment directory
 echo "📁 Creating deployment directory..."
 sudo mkdir -p /opt/portfolio
@@ -72,23 +89,12 @@ if command -v ufw &> /dev/null; then
     sudo ufw allow 22/tcp comment 'SSH'
     sudo ufw allow 80/tcp comment 'HTTP'
     sudo ufw allow 443/tcp comment 'HTTPS'
+    sudo ufw allow 6443/tcp comment 'Kubernetes API'
+    sudo ufw allow 30000:32767/tcp comment 'Kubernetes NodePort'
     sudo ufw status
     echo "✅ Firewall configured"
 else
     echo "⚠️  UFW not found, skipping firewall configuration"
-fi
-
-# Install Certbot for SSL (optional)
-read -p "Do you want to install Certbot for SSL certificates? (y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo "🔒 Installing Certbot..."
-    sudo apt install certbot python3-certbot-nginx -y
-    echo "✅ Certbot installed"
-    echo ""
-    echo "To get an SSL certificate, run:"
-    echo "  sudo certbot certonly --standalone -d moshe-makies.dev"
-    echo ""
 fi
 
 # Display server information
@@ -102,7 +108,8 @@ echo "-------------------"
 echo "Hostname: $(hostname)"
 echo "IP Address: $(hostname -I | awk '{print $1}')"
 echo "Docker version: $(docker --version)"
-echo "Docker Compose version: $(docker compose version)"
+echo "kubectl version: $(kubectl version --client --short 2>/dev/null || echo 'N/A')"
+echo "k3s status: $(sudo systemctl is-active k3s 2>/dev/null || echo 'Not running')"
 echo "Git version: $(git --version)"
 echo "Deployment directory: /opt/portfolio"
 echo ""

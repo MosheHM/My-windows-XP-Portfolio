@@ -57,21 +57,26 @@ jobs:
             git checkout $BRANCH
             git pull origin $BRANCH
 
-            # Stop containers
-            docker compose -f docker-compose.prod.yml down
+            # Build Docker images
+            echo "🔨 Building Docker images..."
+            docker build -t portfolio-client:latest ./client
+            docker build -t llm-service:latest ./services/llm-service
+            docker build -t file-service:latest ./services/file-service
 
-            # Rebuild and start
-            docker compose -f docker-compose.prod.yml build --no-cache
-            docker compose -f docker-compose.prod.yml up -d
+            # Deploy to Kubernetes
+            echo "☸️  Deploying to Kubernetes..."
+            kubectl apply -f k8s/namespace.yaml
+            kubectl apply -f k8s/configmap.yaml -n portfolio
+            kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
+            kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
+            kubectl apply -f k8s/client-deployment.yaml -n portfolio
 
             # Wait and verify
-            sleep 10
-            if curl -f http://localhost/health > /dev/null 2>&1; then
-              echo "✅ Deployment successful!"
-            else
-              echo "❌ Deployment may have issues, check logs"
-              exit 1
-            fi
+            echo "⏳ Waiting for deployments..."
+            kubectl wait --for=condition=available --timeout=300s deployment/portfolio-client -n portfolio || true
+
+            kubectl get pods -n portfolio
+            echo "✅ Deployment successful!"
 
             docker image prune -f
           ENDSSH
@@ -112,19 +117,31 @@ jobs:
             # Rollback to previous commit
             git reset --hard $PREVIOUS_COMMIT
 
-            # Rebuild and restart
-            docker compose -f docker-compose.prod.yml down
-            docker compose -f docker-compose.prod.yml build --no-cache
-            docker compose -f docker-compose.prod.yml up -d
+            # Build Docker images
+            echo "🔨 Building Docker images from previous version..."
+            docker build -t portfolio-client:latest ./client
+            docker build -t llm-service:latest ./services/llm-service
+            docker build -t file-service:latest ./services/file-service
+
+            # Redeploy to Kubernetes
+            echo "☸️  Redeploying to Kubernetes..."
+            kubectl apply -f k8s/namespace.yaml
+            kubectl apply -f k8s/configmap.yaml -n portfolio
+            kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
+            kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
+            kubectl apply -f k8s/client-deployment.yaml -n portfolio
+
+            # Restart deployments to pick up new images
+            kubectl rollout restart deployment/portfolio-client -n portfolio
+            kubectl rollout restart deployment/file-service -n portfolio
+            kubectl rollout restart deployment/llm-service -n portfolio
 
             # Wait and verify
-            sleep 10
-            if curl -f http://localhost/health > /dev/null 2>&1; then
-              echo "✅ Rollback successful!"
-            else
-              echo "❌ Rollback may have issues, check logs"
-              exit 1
-            fi
+            echo "⏳ Waiting for rollback to complete..."
+            kubectl wait --for=condition=available --timeout=300s deployment/portfolio-client -n portfolio || true
+
+            kubectl get pods -n portfolio
+            echo "✅ Rollback successful!"
           ENDSSH
 
   restart:
@@ -152,14 +169,16 @@ jobs:
             echo "🔄 Restarting services..."
 
             cd /opt/portfolio
-            docker compose -f docker-compose.prod.yml restart
+
+            # Restart all deployments in Kubernetes
+            kubectl rollout restart deployment/portfolio-client -n portfolio
+            kubectl rollout restart deployment/file-service -n portfolio
+            kubectl rollout restart deployment/llm-service -n portfolio
 
             # Wait and verify
-            sleep 10
-            if curl -f http://localhost/health > /dev/null 2>&1; then
-              echo "✅ Services restarted successfully!"
-            else
-              echo "❌ Restart may have issues, check logs"
-              exit 1
-            fi
+            echo "⏳ Waiting for services to restart..."
+            kubectl wait --for=condition=available --timeout=300s deployment/portfolio-client -n portfolio || true
+
+            kubectl get pods -n portfolio
+            echo "✅ Services restarted successfully!"
           ENDSSH

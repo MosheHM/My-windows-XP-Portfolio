@@ -46,30 +46,39 @@ jobs:
               cd /opt/portfolio
             fi
 
-            # Stop existing containers
-            echo "🛑 Stopping existing containers..."
-            docker compose -f docker-compose.prod.yml down || true
-
-            # Pull latest images and rebuild
+            # Build Docker images
             echo "🔨 Building Docker images..."
-            docker compose -f docker-compose.prod.yml build --no-cache
+            docker build -t portfolio-client:latest ./client
+            docker build -t llm-service:latest ./services/llm-service
+            docker build -t file-service:latest ./services/file-service
 
-            # Start services
-            echo "▶️  Starting services..."
-            docker compose -f docker-compose.prod.yml up -d
+            # Deploy to Kubernetes
+            echo "☸️  Deploying to Kubernetes..."
 
-            # Wait for services to be healthy
+            # Create/update namespace
+            kubectl apply -f k8s/namespace.yaml
+
+            # Apply ConfigMap
+            kubectl apply -f k8s/configmap.yaml -n portfolio
+
+            # Deploy services
+            kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
+            kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
+            kubectl apply -f k8s/client-deployment.yaml -n portfolio
+
+            # Wait for deployments to be ready
             echo "⏳ Waiting for services to be ready..."
-            sleep 10
+            kubectl wait --for=condition=available --timeout=300s deployment/portfolio-client -n portfolio || true
+            kubectl wait --for=condition=available --timeout=300s deployment/file-service -n portfolio || true
 
-            # Check service health
-            if curl -f http://localhost/health > /dev/null 2>&1; then
-              echo "✅ Deployment successful!"
-              echo "🌐 Application is running at http://moshe-makies.dev"
-            else
-              echo "⚠️  Warning: Health check failed, check logs with:"
-              echo "   docker compose -f /opt/portfolio/docker-compose.prod.yml logs"
-            fi
+            # Check deployment status
+            echo "📊 Deployment status:"
+            kubectl get pods -n portfolio
+
+            # Get NodePort for access
+            NODE_PORT=$(kubectl get svc client-service -n portfolio -o jsonpath='{.spec.ports[0].nodePort}')
+            echo "✅ Deployment successful!"
+            echo "🌐 Application is running at http://moshe-makies.dev:${NODE_PORT}"
 
             # Cleanup old images
             echo "🧹 Cleaning up old Docker images..."

@@ -1,16 +1,16 @@
 # Auto-Deployment Setup Guide
 
-This guide explains how to set up automatic deployment to your production server at `moshe-makies.dev` (129.159.130.84).
+This guide explains how to set up automatic deployment to your production server at `moshe-makies.dev` (129.159.130.84) using Kubernetes.
 
 ## Overview
 
-The repository is configured with GitHub Actions to automatically deploy your Windows XP Portfolio to your production server whenever changes are pushed to the `main` branch.
+The repository is configured with GitHub Actions to automatically deploy your Windows XP Portfolio to your production server whenever changes are pushed to the `main` branch using Kubernetes (k3s).
 
 ## Prerequisites
 
 1. **Server Requirements:**
    - Ubuntu/Debian Linux server at 129.159.130.84
-   - Docker and Docker Compose installed
+   - Docker and Kubernetes (k3s) installed
    - Domain `moshe-makies.dev` pointing to 129.159.130.84
    - At least 8GB RAM and 20GB free disk space
 
@@ -22,31 +22,28 @@ The repository is configured with GitHub Actions to automatically deploy your Wi
 
 ### Step 1: Prepare Your Server
 
-SSH into your server and prepare it:
+SSH into your server and run the automated setup script:
 
 ```bash
 # Connect to your server
 ssh your_user@129.159.130.84
 
-# Update system packages
-sudo apt update && sudo apt upgrade -y
+# Clone the repository (if not already done)
+git clone https://github.com/MosheHM/My-windows-XP-Portfolio.git
+cd My-windows-XP-Portfolio
 
-# Install Docker (if not already installed)
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-sudo usermod -aG docker $USER
-
-# Install Docker Compose (if not already installed)
-sudo apt install docker-compose-plugin -y
-
-# Create deployment directory
-sudo mkdir -p /opt/portfolio
-sudo chown -R $USER:$USER /opt/portfolio
-
-# Verify Docker is running
-docker --version
-docker compose version
+# Run the setup script (installs Docker, kubectl, k3s, etc.)
+./scripts/setup-server.sh
 ```
+
+This script will install:
+- Docker
+- kubectl
+- k3s (lightweight Kubernetes)
+- Git and other dependencies
+- Configure firewall rules
+- Create deployment directory
+
 
 ### Step 2: Configure GitHub Secrets
 
@@ -112,7 +109,7 @@ The GitHub Actions workflow will automatically:
 1. Connect to your server via SSH
 2. Pull the latest code
 3. Build Docker images
-4. Deploy the application
+4. Deploy to Kubernetes
 5. Verify the deployment
 
 You can monitor the deployment in the **Actions** tab of your GitHub repository.
@@ -136,11 +133,15 @@ export SERVER_IP=129.159.130.84
 After deployment, verify the application is running:
 
 ```bash
-# Check the application
-curl http://moshe-makies.dev/health
+# Get the NodePort (usually 30080)
+kubectl get svc client-service -n portfolio
 
-# Or visit in browser
-# http://moshe-makies.dev
+# Check pods status
+kubectl get pods -n portfolio
+
+# Access the application (replace PORT with the NodePort)
+curl http://moshe-makies.dev:PORT
+# Or visit in browser: http://moshe-makies.dev:PORT
 ```
 
 ## Deployment Workflow
@@ -151,10 +152,10 @@ The GitHub Actions workflow (`.github/workflows/deploy.yml`) performs these step
 2. **Set up SSH** - Configures SSH authentication using the secret key
 3. **Deploy to server** - Connects to the server and:
    - Pulls/clones the repository
-   - Stops existing containers
-   - Builds new Docker images
-   - Starts the services
-   - Verifies health
+   - Builds Docker images
+   - Deploys to Kubernetes cluster
+   - Waits for pods to be ready
+   - Verifies deployment status
    - Cleans up old images
 4. **Verify deployment** - Confirms successful deployment
 
@@ -165,36 +166,53 @@ The GitHub Actions workflow (`.github/workflows/deploy.yml`) performs these step
 SSH into your server and run:
 
 ```bash
-# View all logs
-docker compose -f /opt/portfolio/docker-compose.prod.yml logs -f
+# View all pods
+kubectl get pods -n portfolio
 
-# View specific service logs
-docker compose -f /opt/portfolio/docker-compose.prod.yml logs -f nginx-gateway
-docker compose -f /opt/portfolio/docker-compose.prod.yml logs -f client
-docker compose -f /opt/portfolio/docker-compose.prod.yml logs -f llm-service
-docker compose -f /opt/portfolio/docker-compose.prod.yml logs -f file-service
+# View specific pod logs
+kubectl logs -f deployment/portfolio-client -n portfolio
+kubectl logs -f deployment/llm-service -n portfolio
+kubectl logs -f deployment/file-service -n portfolio
+
+# Stream logs from all pods of a deployment
+kubectl logs -f -l app=portfolio-client -n portfolio
 ```
 
 ### Restart Services
 
 ```bash
-# Restart all services
-docker compose -f /opt/portfolio/docker-compose.prod.yml restart
+# Restart all deployments
+kubectl rollout restart deployment/portfolio-client -n portfolio
+kubectl rollout restart deployment/llm-service -n portfolio
+kubectl rollout restart deployment/file-service -n portfolio
 
-# Restart specific service
-docker compose -f /opt/portfolio/docker-compose.prod.yml restart nginx-gateway
+# Or use the manual workflow from GitHub Actions
 ```
 
-### Stop Services
+### Scale Services
 
 ```bash
-docker compose -f /opt/portfolio/docker-compose.prod.yml down
+# Scale the client
+kubectl scale deployment/portfolio-client --replicas=3 -n portfolio
+
+# Scale file service
+kubectl scale deployment/file-service --replicas=2 -n portfolio
 ```
 
 ### Check Service Status
 
 ```bash
-docker compose -f /opt/portfolio/docker-compose.prod.yml ps
+# Check pod status
+kubectl get pods -n portfolio
+
+# Get detailed pod information
+kubectl describe pod <pod-name> -n portfolio
+
+# Check services
+kubectl get svc -n portfolio
+
+# Check persistent volume claims
+kubectl get pvc -n portfolio
 ```
 
 ## Troubleshooting
@@ -211,28 +229,36 @@ docker compose -f /opt/portfolio/docker-compose.prod.yml ps
    ssh -i ~/.ssh/github_deploy your_user@129.159.130.84
    ```
 
-3. **Check server logs:**
+3. **Check Kubernetes cluster:**
    ```bash
    ssh your_user@129.159.130.84
-   docker compose -f /opt/portfolio/docker-compose.prod.yml logs
+   kubectl get pods -n portfolio
+   kubectl get events -n portfolio --sort-by='.lastTimestamp'
    ```
 
-### Services Not Starting
+### Pods Not Starting
 
-1. **Check Docker:**
+1. **Check pod status:**
    ```bash
-   docker ps -a
-   docker compose -f /opt/portfolio/docker-compose.prod.yml ps
+   kubectl get pods -n portfolio
+   kubectl describe pod <pod-name> -n portfolio
    ```
 
-2. **Check disk space:**
+2. **Check pod logs:**
+   ```bash
+   kubectl logs <pod-name> -n portfolio
+   ```
+
+3. **Check disk space:**
    ```bash
    df -h
    ```
 
-3. **Check memory:**
+4. **Check memory:**
    ```bash
    free -h
+   kubectl top nodes
+   kubectl top pods -n portfolio
    ```
 
 ### Domain Not Resolving
@@ -243,9 +269,10 @@ docker compose -f /opt/portfolio/docker-compose.prod.yml ps
    dig moshe-makies.dev
    ```
 
-2. **Check Nginx configuration:**
+2. **Check NodePort service:**
    ```bash
-   docker compose -f /opt/portfolio/docker-compose.prod.yml logs nginx-gateway
+   kubectl get svc client-service -n portfolio
+   # Note the NodePort and access via http://moshe-makies.dev:<NodePort>
    ```
 
 ## Security Recommendations
@@ -257,13 +284,15 @@ docker compose -f /opt/portfolio/docker-compose.prod.yml ps
    sudo ufw allow 22/tcp
    sudo ufw allow 80/tcp
    sudo ufw allow 443/tcp
+   sudo ufw allow 6443/tcp  # Kubernetes API
+   sudo ufw allow 30000:32767/tcp  # Kubernetes NodePort range
    sudo ufw enable
    ```
 4. **Enable SSL/HTTPS** - Use Let's Encrypt for free SSL certificates
 5. **Regular updates:**
    ```bash
    sudo apt update && sudo apt upgrade -y
-   docker compose -f /opt/portfolio/docker-compose.prod.yml pull
+   # Update container images by redeploying
    ```
 
 ## Useful Commands
@@ -275,22 +304,32 @@ docker compose -f /opt/portfolio/docker-compose.prod.yml ps
 # SSH to server
 ssh your_user@129.159.130.84
 
-# View running containers
-docker ps
+# View running pods
+kubectl get pods -n portfolio
 
-# View all containers (including stopped)
-docker ps -a
+# View all resources
+kubectl get all -n portfolio
 
-# Remove all stopped containers
-docker container prune
+# View pod logs
+kubectl logs -f deployment/portfolio-client -n portfolio
 
-# Remove unused images
-docker image prune -a
+# Restart a deployment
+kubectl rollout restart deployment/portfolio-client -n portfolio
 
-# Check disk usage
-docker system df
+# Scale a deployment
+kubectl scale deployment/portfolio-client --replicas=3 -n portfolio
 
-# Full cleanup (be careful!)
+# Delete all resources in namespace
+kubectl delete namespace portfolio
+
+# Check cluster status
+kubectl cluster-info
+
+# View node resources
+kubectl top nodes
+
+# View pod resources
+kubectl top pods -n portfolio
 docker system prune -a --volumes
 ```
 

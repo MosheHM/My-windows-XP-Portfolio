@@ -1,10 +1,10 @@
 # Quick Start: Auto-Deployment Setup
 
-This guide provides a quick overview of setting up auto-deployment for your Windows XP Portfolio to moshe-makies.dev.
+This guide provides a quick overview of setting up auto-deployment for your Windows XP Portfolio to moshe-makies.dev using Kubernetes.
 
 ## 🎯 What This Does
 
-Automatically deploys your portfolio to your server at `129.159.130.84` (moshe-makies.dev) whenever you push to the `main` branch.
+Automatically deploys your portfolio to your server at `129.159.130.84` (moshe-makies.dev) using Kubernetes whenever you push to the `main` branch.
 
 ## ⚡ Quick Setup (5 Steps)
 
@@ -17,11 +17,11 @@ SSH into your server and run the setup script:
 git clone https://github.com/MosheHM/My-windows-XP-Portfolio.git
 cd My-windows-XP-Portfolio
 
-# Run the setup script
+# Run the setup script (installs Docker, kubectl, k3s)
 ./scripts/setup-server.sh
 ```
 
-This installs Docker, Docker Compose, and prepares the deployment directory.
+This installs Docker, kubectl, k3s (lightweight Kubernetes), and prepares the deployment directory.
 
 ### Step 2: Generate SSH Key
 
@@ -80,14 +80,19 @@ The GitHub Actions workflow will automatically:
 1. Connect to your server
 2. Pull the latest code
 3. Build Docker images
-4. Start the application
-5. Verify it's running
+4. Deploy to Kubernetes
+5. Verify pods are running
 
 ## 🎉 Access Your Application
 
-- **Domain**: http://moshe-makies.dev
-- **Direct IP**: http://129.159.130.84
-- **Health Check**: http://moshe-makies.dev/health
+After deployment, get the NodePort:
+```bash
+kubectl get svc client-service -n portfolio
+```
+
+Access via:
+- **Domain**: http://moshe-makies.dev:NodePort (e.g., http://moshe-makies.dev:30080)
+- **Direct IP**: http://129.159.130.84:NodePort
 
 ## 🔄 Additional Operations
 
@@ -120,11 +125,14 @@ You can also trigger manual actions from GitHub:
 SSH to your server and run:
 
 ```bash
-# View all logs
-docker compose -f /opt/portfolio/docker-compose.prod.yml logs -f
+# View pod logs
+kubectl logs -f deployment/portfolio-client -n portfolio
 
-# View specific service
-docker compose -f /opt/portfolio/docker-compose.prod.yml logs -f nginx-gateway
+# View all pods
+kubectl get pods -n portfolio
+
+# View specific pod logs
+kubectl logs <pod-name> -n portfolio
 ```
 
 ## 📚 Full Documentation
@@ -137,16 +145,19 @@ For detailed information, see [DEPLOYMENT.md](DEPLOYMENT.md)
 
 1. Check GitHub Actions logs in the **Actions** tab
 2. Verify SSH access: `ssh your_user@129.159.130.84`
-3. Check server logs: `docker compose -f /opt/portfolio/docker-compose.prod.yml logs`
+3. Check Kubernetes pods: `kubectl get pods -n portfolio`
 
-### Services Not Starting?
+### Pods Not Starting?
 
 ```bash
 # SSH to server
 ssh your_user@129.159.130.84
 
-# Check containers
-docker ps -a
+# Check pods
+kubectl get pods -n portfolio
+
+# Check pod details
+kubectl describe pod <pod-name> -n portfolio
 
 # Check disk space
 df -h
