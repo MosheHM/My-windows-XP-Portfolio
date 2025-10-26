@@ -34,7 +34,7 @@ cd ../../client && npm install
 │   ├── llm-service/       # Python LLM service
 │   └── file-service/      # Python file service
 ├── k8s/                   # Kubernetes manifests
-└── docker-compose.yml     # Local development
+└── scripts/               # Deployment scripts
 ```
 
 ## Coding Standards
@@ -118,7 +118,7 @@ async def process_data(data: List[str]) -> Optional[dict]:
 
 ### Manual Testing
 
-1. Start all services (docker-compose or locally)
+1. Start all services (Kubernetes or locally via ./scripts/dev-start.sh)
 2. Test each feature:
    - Chat functionality with streaming
    - File upload/download

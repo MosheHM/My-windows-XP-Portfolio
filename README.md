@@ -14,9 +14,7 @@ This monorepo contains:
 │   └── file-service/         # Python FastAPI file storage service
 ├── nginx/                    # Nginx API gateway configuration
 ├── k8s/                      # Kubernetes manifests
-├── docker-compose.dev.yml    # Development environment
-├── docker-compose.prod.yml   # Production environment
-└── docker-compose.yml        # Legacy setup (deprecated)
+└── scripts/                  # Deployment and utility scripts
 ```
 
 ### API Gateway Architecture
@@ -75,49 +73,52 @@ LLM Service    File Service      Client
   - Health checks
 - **Port**: 80
 
-## 🐳 Quick Start with Docker Compose
+## 🚀 Quick Start
 
-### Prerequisites
-- Docker and Docker Compose installed
-- At least 8GB RAM available for LLM service
+### Kubernetes Deployment
+
+Kubernetes is the deployment method for this application, providing scalability, high availability, and production-ready features.
+
+#### Prerequisites
+- Kubernetes cluster (minikube, kind, GKE, EKS, AKS, etc.)
+- kubectl configured to access your cluster
+- At least 8GB RAM available for the LLM service
 - 10GB+ free disk space for model downloads
 
-### Development Environment
+#### Deploy to Kubernetes
 
 ```bash
-# Build and start all services in development mode
-docker-compose -f docker-compose.dev.yml up --build
+# Automated deployment (recommended)
+./scripts/deploy-k8s.sh
 
-# Or run in detached mode
-docker-compose -f docker-compose.dev.yml up -d
+# Or using Kustomize
+kubectl apply -k k8s/
 
-# Check logs
-docker-compose -f docker-compose.dev.yml logs -f
+# Or manual deployment
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/configmap.yaml -n portfolio
+kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
+kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
+kubectl apply -f k8s/client-deployment.yaml -n portfolio
+kubectl apply -f k8s/nginx-gateway-deployment.yaml -n portfolio
 
-# Stop all services
-docker-compose -f docker-compose.dev.yml down
+# Check status
+kubectl get pods -n portfolio
+
+# Access the application
+kubectl port-forward service/nginx-gateway 8080:80 -n portfolio
+# Then visit http://localhost:8080
 ```
 
-### Production Environment
-
-```bash
-# Build and start all services in production mode
-docker-compose -f docker-compose.prod.yml up --build -d
-
-# Check logs
-docker-compose -f docker-compose.prod.yml logs -f
-
-# Stop all services
-docker-compose -f docker-compose.prod.yml down
-```
+See the [Kubernetes README](k8s/README.md) for detailed deployment instructions, troubleshooting, and production best practices.
 
 ### Access the Application
-- **Application**: http://localhost
-- **LLM API**: http://localhost/api/llm/*
-- **File API**: http://localhost/api/files/*
-- **Health Check**: http://localhost/health
+- **Application**: http://localhost:8080 (K8s port-forward) or http://<node-ip>:30080 (NodePort)
+- **LLM API**: http://localhost:8080/api/llm/*
+- **File API**: http://localhost:8080/api/files/*
+- **Health Check**: http://localhost:8080/health
 
-**Note**: All services are now accessed through the Nginx gateway. Direct service ports (8000, 8001) are no longer exposed externally.
+**Note**: All services are accessed through the Nginx gateway. Direct service ports (8000, 8001) are not exposed externally.
 
 ## 🛠️ Local Development
 
@@ -177,68 +178,34 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8001
 
 ## ☸️ Kubernetes Deployment
 
-### Prerequisites
-- Kubernetes cluster (minikube, kind, or cloud provider)
-- kubectl configured
-- Docker images built and available
+Kubernetes is the **recommended deployment method** for this application. It provides scalability, high availability, and production-ready features.
 
-### Build Docker Images
+For detailed Kubernetes deployment instructions, troubleshooting, and best practices, see the **[Kubernetes README](k8s/README.md)**.
 
-```bash
-# Build client image
-cd client
-docker build -t portfolio-client:latest .
-
-# Build LLM service image
-cd ../services/llm-service
-docker build -t llm-service:latest .
-
-# Build file service image
-cd ../file-service
-docker build -t file-service:latest .
-```
-
-### Deploy to Kubernetes
+### Quick Deploy
 
 ```bash
-# Create namespace
-kubectl apply -f k8s/namespace.yaml
+# Automated deployment (easiest method)
+./scripts/deploy-k8s.sh
 
-# Apply ConfigMap
-kubectl apply -f k8s/configmap.yaml -n portfolio
-
-# Deploy services
-kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
-kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
-kubectl apply -f k8s/client-deployment.yaml -n portfolio
-
-# Check status
-kubectl get pods -n portfolio
-kubectl get services -n portfolio
+# Or using Kustomize
+kubectl apply -k k8s/
 
 # Access the application
-# The client is exposed via NodePort on port 30080
-# Access at: http://<node-ip>:30080
+kubectl port-forward service/nginx-gateway 8080:80 -n portfolio
+# Visit http://localhost:8080
 ```
 
-### Useful Commands
+### Key Features
 
-```bash
-# View logs
-kubectl logs -f deployment/llm-service -n portfolio
-kubectl logs -f deployment/file-service -n portfolio
-kubectl logs -f deployment/portfolio-client -n portfolio
+- **API Gateway**: Nginx-based gateway for routing and load balancing
+- **High Availability**: Multiple replicas for client and file service
+- **Persistent Storage**: Dedicated PVCs for model cache and file storage
+- **Resource Management**: CPU and memory limits/requests
+- **Health Checks**: Liveness and readiness probes
+- **Scalability**: Easy horizontal scaling with kubectl
 
-# Scale services
-kubectl scale deployment/portfolio-client --replicas=3 -n portfolio
-
-# Port forward for testing
-kubectl port-forward service/llm-service 8000:8000 -n portfolio
-kubectl port-forward service/file-service 8001:8001 -n portfolio
-
-# Delete all resources
-kubectl delete namespace portfolio
-```
+See [k8s/README.md](k8s/README.md) for complete documentation.
 
 ## 📝 API Documentation
 
@@ -322,16 +289,26 @@ The project supports separate environment configurations:
 #### Nginx Gateway
 - `NGINX_PORT`: Gateway port (default: 80)
 
-### Switching Between Environments
+### Deployment Methods
 
-**Development**: Includes source code mounting for hot reload
+**Kubernetes**:
 ```bash
-docker-compose -f docker-compose.dev.yml up
+# Deploy to Kubernetes cluster
+./scripts/deploy-k8s.sh
+
+# Or using Kustomize
+kubectl apply -k k8s/
 ```
 
-**Production**: Optimized with resource limits and no source mounting
+**Local Development** (individual services):
 ```bash
-docker-compose -f docker-compose.prod.yml up
+# Use the development helper script
+./scripts/dev-start.sh
+
+# This will set up and start:
+# - LLM Service on http://localhost:8000
+# - File Service on http://localhost:8001  
+# - Client on http://localhost:5173
 ```
 
 ## 🎯 Features
@@ -386,7 +363,7 @@ app.add_middleware(
 
 1. Create a feature branch
 2. Make your changes
-3. Test locally with docker-compose
+3. Test locally (use ./scripts/dev-start.sh or deploy to K8s)
 4. Submit a pull request
 
 ## 📄 License
@@ -406,5 +383,4 @@ For issues or questions:
 - Initial monorepo setup
 - LLM service with RAG
 - File service
-- Kubernetes manifests
-- Docker Compose setup
+- Kubernetes deployment with nginx gateway

@@ -52,6 +52,9 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "Building file service image..."
     docker build -t file-service:latest ./services/file-service
     
+    echo "Building nginx gateway image..."
+    docker build -t nginx-gateway:latest ./nginx
+    
     echo -e "${GREEN}✓ Docker images built successfully${NC}"
     echo
 fi
@@ -82,6 +85,11 @@ echo
 echo -e "${YELLOW}Deploying client...${NC}"
 kubectl apply -f ${K8S_DIR}/client-deployment.yaml -n ${NAMESPACE}
 echo -e "${GREEN}✓ Client deployed${NC}"
+echo
+
+echo -e "${YELLOW}Deploying nginx gateway...${NC}"
+kubectl apply -f ${K8S_DIR}/nginx-gateway-deployment.yaml -n ${NAMESPACE}
+echo -e "${GREEN}✓ Nginx gateway deployed${NC}"
 echo
 
 # Step 5: Wait for deployments
@@ -124,12 +132,12 @@ kubectl get pvc -n ${NAMESPACE}
 echo
 
 # Step 7: Get access information
-NODE_PORT=$(kubectl get svc client-service -n ${NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}')
+NODE_PORT=$(kubectl get svc nginx-gateway -n ${NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}')
 echo -e "${GREEN}===================================${NC}"
 echo -e "${GREEN}Access Information${NC}"
 echo -e "${GREEN}===================================${NC}"
 echo
-echo "The application is exposed via NodePort on port: ${NODE_PORT}"
+echo "The application is exposed via Nginx Gateway on NodePort: ${NODE_PORT}"
 echo
 echo "To access the application:"
 echo "1. Get your node IP:"
@@ -138,7 +146,7 @@ echo "2. Access the application at:"
 echo -e "   ${YELLOW}http://<node-ip>:${NODE_PORT}${NC}"
 echo
 echo "For local access with port-forward:"
-echo -e "   ${YELLOW}kubectl port-forward service/client-service 8080:80 -n ${NAMESPACE}${NC}"
+echo -e "   ${YELLOW}kubectl port-forward service/nginx-gateway 8080:80 -n ${NAMESPACE}${NC}"
 echo -e "   Then access at: ${YELLOW}http://localhost:8080${NC}"
 echo
 
@@ -148,6 +156,7 @@ echo -e "${GREEN}Useful Commands${NC}"
 echo -e "${GREEN}===================================${NC}"
 echo
 echo "View logs:"
+echo -e "  ${YELLOW}kubectl logs -f deployment/nginx-gateway -n ${NAMESPACE}${NC}"
 echo -e "  ${YELLOW}kubectl logs -f deployment/llm-service -n ${NAMESPACE}${NC}"
 echo -e "  ${YELLOW}kubectl logs -f deployment/file-service -n ${NAMESPACE}${NC}"
 echo -e "  ${YELLOW}kubectl logs -f deployment/portfolio-client -n ${NAMESPACE}${NC}"

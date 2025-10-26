@@ -2,56 +2,86 @@
 
 Get the Windows XP Portfolio up and running in minutes.
 
-## Option 1: Docker Compose (Recommended)
+## Option 1: Kubernetes Deployment
 
-The fastest way to run all services together with nginx gateway:
+Deploy to a Kubernetes cluster for production-ready infrastructure with scalability and high availability.
 
-### Development Environment
+### Automated Deployment
 
 ```bash
 # Clone the repository
 git clone https://github.com/MosheHM/My-windows-XP-Portfolio.git
 cd My-windows-XP-Portfolio
 
-# Start all services in development mode
-docker-compose -f docker-compose.dev.yml up --build
+# Run the automated deployment script
+./scripts/deploy-k8s.sh
 
-# Wait for services to start (LLM service takes 2-3 minutes to download model)
-# Access the application at http://localhost
+# Follow the prompts to build images (optional) and deploy
+# The script will show you how to access the application
 ```
 
-### Production Environment
+### Manual Deployment
 
 ```bash
-# Start all services in production mode
-docker-compose -f docker-compose.prod.yml up --build -d
+# Using Kustomize (easiest)
+kubectl apply -k k8s/
 
-# Access the application at http://localhost
+# Or deploy manually
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/configmap.yaml -n portfolio
+kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
+kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
+kubectl apply -f k8s/client-deployment.yaml -n portfolio
+kubectl apply -f k8s/nginx-gateway-deployment.yaml -n portfolio
+
+# Check status
+kubectl get pods -n portfolio
+
+# Access the application via port-forward
+kubectl port-forward service/nginx-gateway 8080:80 -n portfolio
+# Visit http://localhost:8080
 ```
 
 **What happens:**
-- Nginx gateway starts on port 80 (single entry point)
-- Client accessible via nginx at http://localhost/
-- LLM API accessible at http://localhost/api/llm/
-- File API accessible at http://localhost/api/files/
-- LLM service downloads TinyLlama model (~2GB on first run)
+- Nginx gateway deployed with 2 replicas (NodePort on 30080)
+- Client deployed with 2 replicas
+- LLM service with persistent model cache (10Gi PVC)
+- File service with 2 replicas and persistent storage (20Gi PVC)
+- All services communicate through the nginx gateway
 
 **Requirements:**
-- Docker and Docker Compose
-- 8GB+ RAM
-- 10GB+ disk space
+- Kubernetes cluster (minikube, kind, GKE, EKS, AKS, etc.)
+- kubectl configured
+- 8GB+ RAM available for the cluster
+- 30GB+ storage for PVCs
 
-**Key Differences:**
-- **Development**: Source code mounted for hot reload, detailed logging
-- **Production**: Optimized builds, resource limits, no source mounting
+**See [k8s/README.md](k8s/README.md) for detailed documentation.**
 
 ## Option 2: Local Development
 
-Run services individually for development:
+Run services individually for local development without Kubernetes.
 
-### 1. Start Backend Services
+### Automated Setup
 
-#### LLM Service
+```bash
+# Clone the repository
+git clone https://github.com/MosheHM/My-windows-XP-Portfolio.git
+cd My-windows-XP-Portfolio
+
+# Run the development helper script
+./scripts/dev-start.sh
+
+# This will:
+# - Set up Python virtual environments for services
+# - Install all dependencies
+# - Start services in separate terminals
+```
+
+### Manual Setup
+
+#### 1. Start Backend Services
+
+##### LLM Service
 
 ```bash
 cd services/llm-service
@@ -69,7 +99,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 First run downloads the TinyLlama model (~2GB). Subsequent runs are instant.
 
-#### File Service
+##### File Service
 
 ```bash
 cd services/file-service
@@ -85,7 +115,7 @@ pip install -r requirements.txt
 uvicorn main:app --reload --host 0.0.0.0 --port 8001
 ```
 
-### 2. Start Frontend
+#### 2. Start Frontend
 
 ```bash
 cd client
@@ -102,51 +132,33 @@ npm run dev
 
 Access at http://localhost:5173
 
-## Option 3: Kubernetes Deployment
-
-For production-like environment:
-
-```bash
-# Build images
-docker build -t portfolio-client:latest ./client
-docker build -t llm-service:latest ./services/llm-service
-docker build -t file-service:latest ./services/file-service
-
-# Deploy to Kubernetes
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/configmap.yaml -n portfolio
-kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
-kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
-kubectl apply -f k8s/client-deployment.yaml -n portfolio
-
-# Check status
-kubectl get pods -n portfolio
-
-# Access via NodePort
-# http://<node-ip>:30080
-```
+**What's running:**
+- LLM Service: http://localhost:8000 (API docs at /docs)
+- File Service: http://localhost:8001 (API docs at /docs)
+- Client: http://localhost:5173
 
 ## Verification
 
 ### Check Services are Running
 
-With the nginx gateway:
+**With Kubernetes:**
 
 ```bash
-# Gateway health check
-curl http://localhost/health
+# Check all pods
+kubectl get pods -n portfolio
+
+# Gateway health check (via port-forward)
+kubectl port-forward service/nginx-gateway 8080:80 -n portfolio &
+curl http://localhost:8080/health
 
 # LLM Service (via gateway)
-curl http://localhost/api/llm/health
+curl http://localhost:8080/api/llm/health
 
 # File Service (via gateway)
-curl http://localhost/api/files/health
-
-# Client
-curl http://localhost/
+curl http://localhost:8080/api/files/health
 ```
 
-For local development (without gateway):
+**For local development (direct access):**
 
 ```bash
 # LLM Service
@@ -238,33 +250,45 @@ curl -X POST http://localhost:8001/upload \
 
 ## Development Workflow
 
-1. **Start backend services** (once)
+1. **Start backend services** (via dev-start.sh or manually)
 2. **Start client in dev mode** (hot reload enabled)
 3. **Make changes** - client auto-reloads
 4. **Test** - check chat and file operations
 5. **Build** - `npm run build` in client directory
-6. **Deploy** - via Docker or Kubernetes
+6. **Deploy** - via Kubernetes
 
 ## Production Deployment
 
-For production:
+For production, use Kubernetes:
 
 1. Update CORS settings in backend services (restrict origins)
 2. Add authentication/authorization
 3. Use environment-specific configs
 4. Set up monitoring (health checks, logs)
 5. Configure backups (file storage, model cache)
-6. Use reverse proxy (nginx, Traefik)
-7. Set up SSL/TLS certificates
-8. Scale services based on load
+6. Set up SSL/TLS certificates (using Ingress)
+7. Scale services based on load
+8. Use persistent volumes for data
 
 ## Tips
 
 - **First run:** LLM service downloads model (~2-3 minutes)
 - **Subsequent runs:** Much faster (model is cached)
-- **Development:** Use docker-compose for quick iteration
-- **Production:** Use Kubernetes for scalability
+- **Development:** Use `./scripts/dev-start.sh` for local development
+- **Production:** Use Kubernetes for scalability and high availability
 - **GPU:** If available, LLM service auto-detects and uses it
 - **Model size:** TinyLlama is lightweight. Can upgrade to Llama 2 or Mistral for better quality
+
+## Deployment Comparison
+
+| Feature | Kubernetes | Local Dev |
+|---------|-----------|-----------|
+| **Best for** | Production | Development |
+| **Scalability** | ✅ Excellent | ❌ None |
+| **High Availability** | ✅ Built-in | ❌ None |
+| **Resource Management** | ✅ Full control | ❌ Manual |
+| **Setup Complexity** | ⚠️ Moderate | ✅ Easy |
+| **Rolling Updates** | ✅ Zero downtime | ❌ Manual |
+| **Load Balancing** | ✅ Automatic | ❌ None |
 
 Enjoy your Windows XP Portfolio! 🎉
