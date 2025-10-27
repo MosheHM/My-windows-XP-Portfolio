@@ -79,11 +79,15 @@ newgrp docker
 # Download the latest release
 curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 
+# (Optional) Verify the download with checksum - recommended for production
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+
 # Install kubectl
 sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
 # Clean up
-rm kubectl
+rm kubectl kubectl.sha256
 ```
 
 ### 7. Configure kubeconfig
@@ -92,6 +96,8 @@ Ensure the deploy user has access to the kubeconfig file. If using k3s:
 
 ```bash
 # If using k3s, copy the kubeconfig to the user's home directory
+mkdir -p ~/.kube
+chmod 755 ~/.kube
 sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
 sudo chown $(id -u):$(id -g) ~/.kube/config
 
@@ -197,11 +203,15 @@ newgrp docker
 # Download the latest release
 curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 
+# (Optional) Verify the download with checksum - recommended for production
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+
 # Install kubectl
 sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
 # Clean up
-rm kubectl
+rm kubectl kubectl.sha256
 ```
 
 ### 7. Configure kubeconfig
@@ -266,7 +276,10 @@ chmod 700 ~/.ssh
 
 # Add the public key to authorized_keys
 # (The corresponding private key should be in GitHub Secrets as SSH_PRIVATE_KEY)
-echo "ssh-rsa YOUR_PUBLIC_KEY_HERE" >> ~/.ssh/authorized_keys
+# Note: Replace YOUR_PUBLIC_KEY_HERE with your actual public key
+# Check if key already exists to avoid duplicates
+PUBLIC_KEY="ssh-rsa YOUR_PUBLIC_KEY_HERE"
+grep -qF "$PUBLIC_KEY" ~/.ssh/authorized_keys || echo "$PUBLIC_KEY" >> ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 ```
 
@@ -332,7 +345,7 @@ sudo ss -tlnp | grep LISTEN
 
 ```bash
 git config --global user.name "Deploy User"
-git config --global user.email "deploy@yourdomain.com"
+git config --global user.email "deploy@example.com"
 ```
 
 ### 2. Verify repository access
@@ -406,6 +419,7 @@ kubectl config view
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 # Or copy it to default location:
 mkdir -p ~/.kube
+chmod 755 ~/.kube
 sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
 sudo chown $(id -u):$(id -g) ~/.kube/config
 ```
@@ -424,8 +438,11 @@ ssh-keyscan -H YOUR_SERVER_IP >> ~/.ssh/known_hosts
 
 ```bash
 # Check if k3s is configured to use local containerd or docker
-# With k3s, you may need to import images explicitly:
-sudo k3s ctr images import <image-tar-file>
+# With k3s, you may need to import images explicitly.
+# First, save the Docker image to a tar file, then import it:
+docker save portfolio-client:latest -o portfolio-client.tar
+sudo k3s ctr images import portfolio-client.tar
+rm portfolio-client.tar
 
 # Or configure k3s to use Docker:
 # Install k3s with --docker flag
