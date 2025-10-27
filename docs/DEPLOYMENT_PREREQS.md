@@ -26,6 +26,34 @@ Optional but recommended:
 
 ## Ubuntu / Debian installation (tested on Ubuntu 20.04+)
 
+### Automated Installation (Recommended)
+
+For a fully automated installation, use the provided script:
+
+```bash
+# Clone the repository
+git clone https://github.com/MosheHM/My-windows-XP-Portfolio.git
+cd My-windows-XP-Portfolio
+
+# Run the installation script
+./scripts/ubuntu-prereqs-install.sh
+
+# Or with custom options:
+./scripts/ubuntu-prereqs-install.sh --deploy-user myuser --skip-k3s
+```
+
+The script will:
+- Install all required packages (git, curl, Docker, kubectl)
+- Configure Docker service and add user to docker group
+- Install and configure k3s (optional with `--skip-k3s`)
+- Set up kubeconfig with proper permissions
+- Configure firewall rules for NodePort range
+- Verify all installations
+
+For manual installation or to understand each step, follow the detailed instructions below.
+
+### Manual Installation
+
 ### 1. Update packages
 
 ```bash
@@ -529,6 +557,55 @@ docker system prune -f  # More aggressive cleanup
 ```bash
 kubectl get svc client-service -n portfolio -o jsonpath='{.spec.ports[0].nodePort}'
 ```
+
+## Automated Installation Script
+
+For convenience, an automated installation script is provided at `scripts/ubuntu-prereqs-install.sh`.
+
+### Usage
+
+**Basic installation (installs everything including k3s):**
+```bash
+./scripts/ubuntu-prereqs-install.sh
+```
+
+**Specify a different deploy user:**
+```bash
+./scripts/ubuntu-prereqs-install.sh --deploy-user deployuser
+```
+
+**Skip k3s installation (if you're using a different Kubernetes distribution):**
+```bash
+./scripts/ubuntu-prereqs-install.sh --skip-k3s
+```
+
+**Show help:**
+```bash
+./scripts/ubuntu-prereqs-install.sh --help
+```
+
+### What the script does
+
+The automated script performs all the manual installation steps documented above:
+
+1. ✅ Updates system packages
+2. ✅ Installs git, curl, and prerequisite packages
+3. ✅ Installs Docker from official repository
+4. ✅ Enables and starts Docker service
+5. ✅ Adds specified user to docker group
+6. ✅ Installs kubectl with checksum verification
+7. ✅ Installs k3s (optional)
+8. ✅ Configures kubeconfig with proper permissions
+9. ✅ Configures UFW firewall rules
+10. ✅ Runs verification checks
+
+The script includes:
+- ✅ Colored output for better readability
+- ✅ Error checking with `set -e`
+- ✅ Idempotent operations (safe to run multiple times)
+- ✅ Checksum verification for kubectl
+- ✅ Proper permission settings
+- ✅ Comprehensive verification at the end
 
 ## Additional Resources
 
