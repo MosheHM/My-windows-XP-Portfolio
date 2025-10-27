@@ -14,6 +14,61 @@ jobs:
       contents: read
 
     steps:
+      - name: Validate and Debug Secrets
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          echo "🔍 Validating secrets..."
+          
+          # Validate SSH_PRIVATE_KEY
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "❌ ERROR: SSH_PRIVATE_KEY is not set or is empty"
+            exit 1
+          else
+            echo "✅ SSH_PRIVATE_KEY is set"
+            echo "   Length: ${#SSH_PRIVATE_KEY} characters"
+            echo "   First 20 chars: ${SSH_PRIVATE_KEY:0:20}..."
+            # Check if it looks like a valid private key
+            if echo "$SSH_PRIVATE_KEY" | grep -q "BEGIN.*PRIVATE KEY"; then
+              echo "   Format: Appears to be a valid private key"
+            else
+              echo "   ⚠️  Warning: Does not appear to start with a private key header"
+            fi
+          fi
+          
+          # Validate SERVER_IP
+          if [ -z "$SERVER_IP" ]; then
+            echo "❌ ERROR: SERVER_IP is not set or is empty"
+            exit 1
+          else
+            echo "✅ SERVER_IP is set"
+            echo "   Value: $SERVER_IP"
+          fi
+          
+          # Validate SERVER_USER
+          if [ -z "$SERVER_USER" ]; then
+            echo "❌ ERROR: SERVER_USER is not set or is empty"
+            exit 1
+          else
+            echo "✅ SERVER_USER is set"
+            echo "   Value: $SERVER_USER"
+          fi
+          
+          # Validate DOMAIN
+          if [ -z "$DOMAIN" ]; then
+            echo "❌ ERROR: DOMAIN is not set or is empty"
+            exit 1
+          else
+            echo "✅ DOMAIN is set"
+            echo "   Value: $DOMAIN"
+          fi
+          
+          echo ""
+          echo "✅ All required secrets are validated successfully!"
+
       - name: Checkout code
         uses: actions/checkout@v4
 
