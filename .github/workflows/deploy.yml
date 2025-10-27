@@ -35,54 +35,55 @@ jobs:
 
             echo "🚀 Starting deployment to moshe-makies.dev..."
 
-            # Navigate to project directory or clone if doesn't exist
-            if [ -d "/opt/portfolio" ]; then
-              cd /opt/portfolio
+            TARGET_DIR="$HOME/portfolio"
+
+            # Navigate to project directory or clone if it doesn't exist
+            if [ -d "$TARGET_DIR/.git" ]; then
+              cd "$TARGET_DIR"
               echo "📦 Pulling latest changes..."
               git pull origin main
             else
-              echo "📦 Cloning repository..."
-              git clone https://github.com/MosheHM/My-windows-XP-Portfolio.git /opt/portfolio
-              cd /opt/portfolio
+              echo "📦 Cloning repository into $TARGET_DIR..."
+              mkdir -p "$TARGET_DIR"
+              git clone https://github.com/MosheHM/My-windows-XP-Portfolio.git "$TARGET_DIR"
+              cd "$TARGET_DIR"
+            fi
+
+            # Check docker - if docker requires sudo, use sudo prefix
+            if docker info >/dev/null 2>&1; then
+              DOCKER_CMD="docker"
+            else
+              echo "ℹ️ docker requires sudo; using sudo for docker commands"
+              DOCKER_CMD="sudo docker"
             fi
 
             # Build Docker images
             echo "🔨 Building Docker images..."
-            docker build -t portfolio-client:latest ./client
-            docker build -t llm-service:latest ./services/llm-service
-            docker build -t file-service:latest ./services/file-service
+            $DOCKER_CMD build -t portfolio-client:latest ./client
+            $DOCKER_CMD build -t llm-service:latest ./services/llm-service
+            $DOCKER_CMD build -t file-service:latest ./services/file-service
 
             # Deploy to Kubernetes
             echo "☸️  Deploying to Kubernetes..."
-
-            # Create/update namespace
             kubectl apply -f k8s/namespace.yaml
-
-            # Apply ConfigMap
             kubectl apply -f k8s/configmap.yaml -n portfolio
-
-            # Deploy services
             kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
             kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
             kubectl apply -f k8s/client-deployment.yaml -n portfolio
 
-            # Wait for deployments to be ready
             echo "⏳ Waiting for services to be ready..."
             kubectl wait --for=condition=available --timeout=300s deployment/portfolio-client -n portfolio || true
             kubectl wait --for=condition=available --timeout=300s deployment/file-service -n portfolio || true
 
-            # Check deployment status
             echo "📊 Deployment status:"
             kubectl get pods -n portfolio
 
-            # Get NodePort for access
             NODE_PORT=$(kubectl get svc client-service -n portfolio -o jsonpath='{.spec.ports[0].nodePort}')
             echo "✅ Deployment successful!"
             echo "🌐 Application is running at http://moshe-makies.dev:${NODE_PORT}"
 
-            # Cleanup old images
             echo "🧹 Cleaning up old Docker images..."
-            docker image prune -f
+            $DOCKER_CMD image prune -f
 
           ENDSSH
 
