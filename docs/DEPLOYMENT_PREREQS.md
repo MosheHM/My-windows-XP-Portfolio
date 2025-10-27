@@ -276,8 +276,7 @@ chmod 700 ~/.ssh
 
 # Add the public key to authorized_keys
 # (The corresponding private key should be in GitHub Secrets as SSH_PRIVATE_KEY)
-# Note: Replace YOUR_PUBLIC_KEY_HERE with your actual public key
-# Check if key already exists to avoid duplicates
+# Replace YOUR_PUBLIC_KEY_HERE with your actual public key in both places below
 PUBLIC_KEY="ssh-rsa YOUR_PUBLIC_KEY_HERE"
 grep -qF "$PUBLIC_KEY" ~/.ssh/authorized_keys || echo "$PUBLIC_KEY" >> ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
