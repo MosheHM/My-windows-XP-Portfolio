@@ -2,7 +2,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import os
 import shutil
 from pathlib import Path
@@ -10,6 +10,12 @@ import uuid
 from datetime import datetime
 import json
 import mimetypes
+from pdf_validator import (
+    validate_pdf_split,
+    parse_xml_ground_truth,
+    OverallValidationResult,
+    SplittedResultInfo
+)
 
 app = FastAPI(title="File Storage Service", version="1.0.0")
 
@@ -245,6 +251,107 @@ async def delete_file(file_id: str):
         metadata_file.unlink()
         
         return {"status": "success", "message": f"File {file_id} deleted"}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class SplitDocValidationInput(BaseModel):
+    """Input model for validating a split document"""
+    doc_type: str
+    page_count: int
+    page_numbers: List[int]
+
+
+class ValidationRequest(BaseModel):
+    """Request model for PDF split validation"""
+    xml_file_id: str
+    split_docs: List[SplitDocValidationInput]
+
+
+@app.post("/validate/pdf-split", response_model=OverallValidationResult)
+async def validate_pdf_split_endpoint(request: ValidationRequest):
+    """
+    Validate PDF split results against XML ground truth
+    
+    Args:
+        request: ValidationRequest containing XML file ID and actual split document info
+        
+    Returns:
+        OverallValidationResult with validation scores and details
+    """
+    try:
+        # Load XML file metadata
+        metadata_file = METADATA_PATH / f"{request.xml_file_id}.json"
+        if not metadata_file.exists():
+            raise HTTPException(status_code=404, detail="XML file not found")
+        
+        with open(metadata_file, "r") as f:
+            metadata = FileMetadata(**json.load(f))
+        
+        xml_path = Path(metadata.path)
+        if not xml_path.exists():
+            raise HTTPException(status_code=404, detail="XML file not found on disk")
+        
+        # Validate it's an XML file
+        if not xml_path.suffix.lower() == '.xml':
+            raise HTTPException(status_code=400, detail="File must be an XML file")
+        
+        # Convert input to dict format expected by validator
+        actual_split_info = [
+            {
+                'doc_type': doc.doc_type,
+                'page_count': doc.page_count,
+                'page_numbers': doc.page_numbers
+            }
+            for doc in request.split_docs
+        ]
+        
+        # Perform validation
+        result = validate_pdf_split(xml_path, actual_split_info)
+        
+        return result
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/parse-xml/{file_id}", response_model=SplittedResultInfo)
+async def parse_xml_endpoint(file_id: str):
+    """
+    Parse XML ground truth file and return structured information
+    
+    Args:
+        file_id: ID of the uploaded XML file
+        
+    Returns:
+        SplittedResultInfo with parsed XML structure
+    """
+    try:
+        # Load metadata
+        metadata_file = METADATA_PATH / f"{file_id}.json"
+        if not metadata_file.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        with open(metadata_file, "r") as f:
+            metadata = FileMetadata(**json.load(f))
+        
+        xml_path = Path(metadata.path)
+        if not xml_path.exists():
+            raise HTTPException(status_code=404, detail="File not found on disk")
+        
+        # Validate it's an XML file
+        if not xml_path.suffix.lower() == '.xml':
+            raise HTTPException(status_code=400, detail="File must be an XML file")
+        
+        # Parse XML
+        result = parse_xml_ground_truth(xml_path)
+        
+        return result
     
     except HTTPException:
         raise
