@@ -195,7 +195,7 @@ def test_validate_missing_document(uploaded_xml_id):
 
 
 def test_validate_invalid_file_id(server):
-    """Test validation with invalid file ID"""
+    """Test validation with invalid file ID format"""
     payload = {
         "xml_file_id": "invalid-id",
         "split_docs": [
@@ -208,7 +208,9 @@ def test_validate_invalid_file_id(server):
     }
     
     response = requests.post(f"{BASE_URL}/validate/pdf-split", json=payload)
-    assert response.status_code == 404
+    # Should return 400 Bad Request for invalid file ID format
+    assert response.status_code == 400
+    assert 'Invalid file ID' in response.json()['detail']
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime
 import json
 import mimetypes
+import re
 from pdf_validator import (
     validate_pdf_split,
     parse_xml_ground_truth,
@@ -27,6 +28,41 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Storage configuration
+STORAGE_PATH = Path(os.getenv("STORAGE_PATH", "/data/files"))
+METADATA_PATH = Path(os.getenv("METADATA_PATH", "/data/metadata"))
+MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", 100 * 1024 * 1024))  # 100MB default
+
+# Ensure storage directories exist
+STORAGE_PATH.mkdir(parents=True, exist_ok=True)
+METADATA_PATH.mkdir(parents=True, exist_ok=True)
+
+
+def validate_file_id(file_id: str) -> str:
+    """
+    Validate and sanitize file ID to prevent path traversal attacks.
+    
+    Args:
+        file_id: The file ID to validate
+        
+    Returns:
+        Validated file ID
+        
+    Raises:
+        HTTPException: If file ID is invalid
+    """
+    # Check for path traversal attempts
+    if '..' in file_id or '/' in file_id or '\\' in file_id:
+        raise HTTPException(status_code=400, detail="Invalid file ID")
+    
+    # Validate UUID format (our file IDs are UUIDs)
+    # Allow both with and without hyphens
+    uuid_pattern = r'^[a-f0-9]{8}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{12}$'
+    if not re.match(uuid_pattern, file_id, re.IGNORECASE):
+        raise HTTPException(status_code=400, detail="Invalid file ID format")
+    
+    return file_id
 
 # Storage configuration
 STORAGE_PATH = Path(os.getenv("STORAGE_PATH", "/data/files"))
@@ -283,8 +319,11 @@ async def validate_pdf_split_endpoint(request: ValidationRequest):
         OverallValidationResult with validation scores and details
     """
     try:
+        # Validate and sanitize file ID
+        file_id = validate_file_id(request.xml_file_id)
+        
         # Load XML file metadata
-        metadata_file = METADATA_PATH / f"{request.xml_file_id}.json"
+        metadata_file = METADATA_PATH / f"{file_id}.json"
         if not metadata_file.exists():
             raise HTTPException(status_code=404, detail="XML file not found")
         
@@ -332,6 +371,9 @@ async def parse_xml_endpoint(file_id: str):
         SplittedResultInfo with parsed XML structure
     """
     try:
+        # Validate and sanitize file ID
+        file_id = validate_file_id(file_id)
+        
         # Load metadata
         metadata_file = METADATA_PATH / f"{file_id}.json"
         if not metadata_file.exists():
