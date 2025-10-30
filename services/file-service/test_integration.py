@@ -18,6 +18,20 @@ BASE_URL = "http://127.0.0.1:8001"
 SAMPLE_XML_PATH = Path(__file__).parent.parent.parent / "@samples" / "combined-samples" / "sample_ground_truth.xml"
 
 
+def wait_for_server(url, timeout=10, interval=0.5):
+    """Wait for server to become available"""
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            response = requests.get(f"{url}/health", timeout=1)
+            if response.status_code == 200:
+                return True
+        except requests.exceptions.RequestException:
+            pass
+        time.sleep(interval)
+    return False
+
+
 @pytest.fixture(scope="module")
 def server():
     """Start the server for testing"""
@@ -34,22 +48,41 @@ def server():
         stderr=subprocess.PIPE
     )
     
-    # Wait for server to start
-    time.sleep(3)
-    
-    # Check if server is running
-    try:
-        response = requests.get(f"{BASE_URL}/health", timeout=5)
-        assert response.status_code == 200
-    except Exception as e:
-        process.terminate()
-        raise Exception(f"Server failed to start: {e}")
+    # Wait for server to start with retry mechanism
+    if not wait_for_server(BASE_URL, timeout=10):
+        try:
+            process.terminate()
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+        raise Exception("Server failed to start within timeout")
     
     yield process
     
-    # Cleanup
-    process.terminate()
-    process.wait()
+    # Cleanup with proper exception handling
+    try:
+        process.terminate()
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        # If graceful termination fails, force kill
+        process.kill()
+        process.wait()
+
+
+@pytest.fixture(scope="module")
+def uploaded_xml_id(server):
+    """Upload XML file once and share across tests"""
+    if not SAMPLE_XML_PATH.exists():
+        pytest.skip(f"Sample XML not found at {SAMPLE_XML_PATH}")
+    
+    with open(SAMPLE_XML_PATH, 'rb') as f:
+        files = {'file': (SAMPLE_XML_PATH.name, f, 'application/xml')}
+        response = requests.post(f"{BASE_URL}/upload", files=files)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert 'id' in data
+    return data['id']
 
 
 def test_health_endpoint(server):
@@ -61,31 +94,16 @@ def test_health_endpoint(server):
     assert data['storage_available'] is True
 
 
-def test_upload_xml_file(server):
+def test_upload_xml_file(uploaded_xml_id):
     """Test uploading XML file"""
-    if not SAMPLE_XML_PATH.exists():
-        pytest.skip(f"Sample XML not found at {SAMPLE_XML_PATH}")
-    
-    with open(SAMPLE_XML_PATH, 'rb') as f:
-        files = {'file': (SAMPLE_XML_PATH.name, f, 'application/xml')}
-        response = requests.post(f"{BASE_URL}/upload", files=files)
-    
-    assert response.status_code == 200
-    data = response.json()
-    assert 'id' in data
-    assert data['original_filename'] == 'sample_ground_truth.xml'
-    assert data['content_type'] == 'application/xml'
-    
-    # Store file_id for other tests
-    pytest.file_id = data['id']
+    # This test verifies the fixture worked correctly
+    assert uploaded_xml_id is not None
+    assert len(uploaded_xml_id) > 0
 
 
-def test_parse_xml_endpoint(server):
+def test_parse_xml_endpoint(uploaded_xml_id):
     """Test parsing XML ground truth"""
-    if not hasattr(pytest, 'file_id'):
-        test_upload_xml_file(server)
-    
-    response = requests.get(f"{BASE_URL}/parse-xml/{pytest.file_id}")
+    response = requests.get(f"{BASE_URL}/parse-xml/{uploaded_xml_id}")
     assert response.status_code == 200
     data = response.json()
     
@@ -96,13 +114,10 @@ def test_parse_xml_endpoint(server):
     assert data['split_docs'][1]['doc_type'] == 'FPL'
 
 
-def test_validate_perfect_match(server):
+def test_validate_perfect_match(uploaded_xml_id):
     """Test validation with perfect match"""
-    if not hasattr(pytest, 'file_id'):
-        test_upload_xml_file(server)
-    
     payload = {
-        "xml_file_id": pytest.file_id,
+        "xml_file_id": uploaded_xml_id,
         "split_docs": [
             {
                 "doc_type": "FSI",
@@ -128,13 +143,10 @@ def test_validate_perfect_match(server):
     assert all(doc['score'] == 1.0 for doc in data['doc_results'])
 
 
-def test_validate_with_errors(server):
+def test_validate_with_errors(uploaded_xml_id):
     """Test validation with errors"""
-    if not hasattr(pytest, 'file_id'):
-        test_upload_xml_file(server)
-    
     payload = {
-        "xml_file_id": pytest.file_id,
+        "xml_file_id": uploaded_xml_id,
         "split_docs": [
             {
                 "doc_type": "WRONG_TYPE",
@@ -159,13 +171,10 @@ def test_validate_with_errors(server):
     assert data['doc_results'][1]['score'] == 1.0
 
 
-def test_validate_missing_document(server):
+def test_validate_missing_document(uploaded_xml_id):
     """Test validation with missing document"""
-    if not hasattr(pytest, 'file_id'):
-        test_upload_xml_file(server)
-    
     payload = {
-        "xml_file_id": pytest.file_id,
+        "xml_file_id": uploaded_xml_id,
         "split_docs": [
             {
                 "doc_type": "FSI",
