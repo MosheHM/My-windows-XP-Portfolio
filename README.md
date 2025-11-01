@@ -207,35 +207,35 @@ kubectl port-forward service/nginx-gateway 8080:80 -n portfolio
 
 See [k8s/README.md](k8s/README.md) for complete documentation.
 
-## 🚀 Production Deployment (Auto-Deploy with Kubernetes)
+## 🚀 Production Deployment (Google Cloud Platform)
 
-This repository is configured with GitHub Actions for automatic deployment to production using Kubernetes.
+This repository is configured with GitHub Actions for automatic deployment to Google Cloud Platform using Google Kubernetes Engine (GKE).
 
 ### Quick Setup
 
-1. **Prepare your server** (Ubuntu/Debian at 129.159.130.84):
+1. **Create GCP resources** (one-time setup):
    ```bash
-   # Copy and run the setup script on your server
-   # This installs Docker, kubectl, and k3s (lightweight Kubernetes)
-   ./scripts/setup-server.sh
+   # Create GKE cluster, Artifact Registry, and service account
+   # See GCP_QUICKSTART.md for detailed commands
    ```
 
 2. **Configure GitHub Secrets:**
-   - `SSH_PRIVATE_KEY` - Your SSH private key for server access
-   - `SERVER_IP` - Your server IP (129.159.130.84)
-   - `SERVER_USER` - SSH username (e.g., ubuntu)
-   - `DOMAIN` - Your domain (moshe-makies.dev)
+   - `GCP_SA_KEY` - Service account key JSON
+   - `GCP_PROJECT_ID` - Your GCP project ID
+   - `GKE_CLUSTER_NAME` - GKE cluster name
+   - `GKE_ZONE` - GKE cluster zone
+   - `GCP_REGION` - Google Cloud region
+   - `GAR_LOCATION` - Artifact Registry location
 
 3. **Deploy:**
    ```bash
    # Automatic: Push to main branch
    git push origin main
-   
-   # Manual: Use deployment script
-   ./scripts/deploy-remote.sh
    ```
 
-📖 **For detailed deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md)**
+📖 **For detailed deployment instructions:**
+- Quick Start: [GCP_QUICKSTART.md](GCP_QUICKSTART.md)
+- Full Guide: [GCP_DEPLOYMENT.md](GCP_DEPLOYMENT.md)
 
 ## 📝 API Documentation
 

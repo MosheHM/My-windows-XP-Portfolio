@@ -1,0 +1,142 @@
+name: Deploy to Google Cloud (GKE)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual triggers
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
+  GKE_ZONE: ${{ secrets.GKE_ZONE }}
+  REGION: ${{ secrets.GCP_REGION }}
+  GAR_LOCATION: ${{ secrets.GAR_LOCATION }}
+  REPOSITORY: portfolio
+  NAMESPACE: portfolio
+
+jobs:
+  deploy:
+    name: Deploy to GKE
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials ${{ env.GKE_CLUSTER }} \
+            --zone ${{ env.GKE_ZONE }} \
+            --project ${{ env.PROJECT_ID }}
+
+      - name: Build and Push Docker Images
+        run: |
+          # Define image registry path
+          REGISTRY="${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}"
+          
+          # Build and push client
+          echo "🔨 Building client image..."
+          docker build -t ${REGISTRY}/portfolio-client:latest \
+            -t ${REGISTRY}/portfolio-client:${{ github.sha }} \
+            ./client
+          docker push ${REGISTRY}/portfolio-client:latest
+          docker push ${REGISTRY}/portfolio-client:${{ github.sha }}
+          
+          # Build and push LLM service
+          echo "🔨 Building LLM service image..."
+          docker build -t ${REGISTRY}/llm-service:latest \
+            -t ${REGISTRY}/llm-service:${{ github.sha }} \
+            ./services/llm-service
+          docker push ${REGISTRY}/llm-service:latest
+          docker push ${REGISTRY}/llm-service:${{ github.sha }}
+          
+          # Build and push file service
+          echo "🔨 Building file service image..."
+          docker build -t ${REGISTRY}/file-service:latest \
+            -t ${REGISTRY}/file-service:${{ github.sha }} \
+            ./services/file-service
+          docker push ${REGISTRY}/file-service:latest
+          docker push ${REGISTRY}/file-service:${{ github.sha }}
+          
+          echo "✅ All images built and pushed successfully"
+
+      - name: Update Kubernetes manifests with image paths
+        run: |
+          REGISTRY="${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}"
+          
+          # Update image references in deployment files
+          sed -i "s|image: portfolio-client:latest|image: ${REGISTRY}/portfolio-client:${{ github.sha }}|g" k8s/client-deployment.yaml
+          sed -i "s|image: llm-service:latest|image: ${REGISTRY}/llm-service:${{ github.sha }}|g" k8s/llm-service-deployment.yaml
+          sed -i "s|image: file-service:latest|image: ${REGISTRY}/file-service:${{ github.sha }}|g" k8s/file-service-deployment.yaml
+          sed -i "s|image: nginx:alpine|image: nginx:alpine|g" k8s/nginx-gateway-deployment.yaml
+
+      - name: Deploy to GKE
+        run: |
+          echo "☸️  Deploying to Kubernetes..."
+          
+          # Create/update namespace
+          kubectl apply -f k8s/namespace.yaml
+          
+          # Apply ConfigMap
+          kubectl apply -f k8s/configmap.yaml -n ${{ env.NAMESPACE }}
+          
+          # Deploy services
+          echo "  Deploying LLM service..."
+          kubectl apply -f k8s/llm-service-deployment.yaml -n ${{ env.NAMESPACE }}
+          
+          echo "  Deploying file service..."
+          kubectl apply -f k8s/file-service-deployment.yaml -n ${{ env.NAMESPACE }}
+          
+          echo "  Deploying client..."
+          kubectl apply -f k8s/client-deployment.yaml -n ${{ env.NAMESPACE }}
+          
+          echo "  Deploying nginx gateway..."
+          kubectl apply -f k8s/nginx-gateway-deployment.yaml -n ${{ env.NAMESPACE }}
+
+      - name: Wait for deployments
+        run: |
+          echo "⏳ Waiting for services to be ready..."
+          kubectl wait --for=condition=available --timeout=600s deployment/portfolio-client -n ${{ env.NAMESPACE }} || true
+          kubectl wait --for=condition=available --timeout=600s deployment/file-service -n ${{ env.NAMESPACE }} || true
+          kubectl wait --for=condition=available --timeout=600s deployment/nginx-gateway -n ${{ env.NAMESPACE }} || true
+
+      - name: Get deployment status
+        run: |
+          echo "📊 Deployment status:"
+          kubectl get pods -n ${{ env.NAMESPACE }}
+          echo ""
+          kubectl get svc -n ${{ env.NAMESPACE }}
+          echo ""
+          
+          # Get external IP or LoadBalancer endpoint
+          echo "🌐 Getting service endpoint..."
+          EXTERNAL_IP=$(kubectl get svc nginx-gateway -n ${{ env.NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          
+          if [ "$EXTERNAL_IP" != "pending" ] && [ -n "$EXTERNAL_IP" ]; then
+            echo "✅ Application is available at: http://$EXTERNAL_IP"
+          else
+            echo "⏳ LoadBalancer IP is being assigned. Check with: kubectl get svc nginx-gateway -n ${{ env.NAMESPACE }}"
+          fi
+
+      - name: Verify deployment
+        run: |
+          echo "✅ Deployment completed!"
+          echo "🌐 Application deployed to GKE cluster: ${{ env.GKE_CLUSTER }}"
+          echo "📍 Region: ${{ env.GKE_ZONE }}"
+          echo "📦 Images pushed to: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}"
