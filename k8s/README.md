@@ -74,11 +74,6 @@ The Kubernetes deployment includes the following components:
 - At least 8GB RAM available for the LLM service
 - StorageClass configured (default: `standard`)
 
-**For Google Cloud (GKE):**
-- See [GCP_QUICKSTART.md](../GCP_QUICKSTART.md) for GCP-specific setup
-- Images should be pushed to Google Artifact Registry
-- Modify deployment manifests to use Artifact Registry image paths
-
 ### Deployment Options
 
 #### Option 1: Using the Deploy Script (Recommended)
@@ -149,41 +144,6 @@ docker build -t file-service:latest ./services/file-service
 ```
 
 ### For Cloud Deployments
-
-#### Google Cloud (GKE) with Artifact Registry
-
-```bash
-# Set your GCP project and region
-export PROJECT_ID=my-portfolio-project
-export REGION=us-central1
-
-# Configure Docker for Artifact Registry
-gcloud auth configure-docker $REGION-docker.pkg.dev
-
-# Build and push images
-REGISTRY="$REGION-docker.pkg.dev/$PROJECT_ID/portfolio"
-
-docker build -t $REGISTRY/nginx-gateway:latest ./nginx
-docker push $REGISTRY/nginx-gateway:latest
-
-docker build -t $REGISTRY/portfolio-client:latest ./client
-docker push $REGISTRY/portfolio-client:latest
-
-docker build -t $REGISTRY/llm-service:latest ./services/llm-service
-docker push $REGISTRY/llm-service:latest
-
-docker build -t $REGISTRY/file-service:latest ./services/file-service
-docker push $REGISTRY/file-service:latest
-
-# Update image references in deployment files
-sed -i "s|image: portfolio-client:latest|image: $REGISTRY/portfolio-client:latest|g" k8s/client-deployment.yaml
-sed -i "s|image: llm-service:latest|image: $REGISTRY/llm-service:latest|g" k8s/llm-service-deployment.yaml
-sed -i "s|image: file-service:latest|image: $REGISTRY/file-service:latest|g" k8s/file-service-deployment.yaml
-```
-
-For automated GCP deployment, see [GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md).
-
-#### Other Cloud Registries
 
 ```bash
 # Tag images with your registry
