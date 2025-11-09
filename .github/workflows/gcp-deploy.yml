@@ -37,7 +37,24 @@ jobs:
 
       - name: Configure Docker for Artifact Registry
         run: |
-          gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev
+          # Validate GAR_LOCATION to avoid passing "-docker.pkg.dev" to gcloud
+          if [ -z "${{ env.GAR_LOCATION }}" ]; then
+            echo "ERROR: GAR_LOCATION is empty. Set secrets.GAR_LOCATION to your Artifact Registry location (examples: 'us', 'europe-west1', 'asia')."
+            exit 1
+          fi
+
+          # Trim whitespace just in case
+          GAR_LOCATION="$(echo '${{ env.GAR_LOCATION }}' | xargs)"
+
+          # Prevent accidental leading dashes
+          if [[ "$GAR_LOCATION" =~ ^- ]]; then
+            echo "ERROR: GAR_LOCATION ('$GAR_LOCATION') appears invalid (starts with a dash). Please set it to a location like 'us' or 'europe-west1'."
+            exit 1
+          fi
+
+          HOST="${GAR_LOCATION}-docker.pkg.dev"
+          echo "Configuring Docker for Artifact Registry host: $HOST"
+          gcloud auth configure-docker "$HOST" --quiet
 
       - name: Get GKE credentials
         run: |
