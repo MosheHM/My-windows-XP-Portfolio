@@ -118,14 +118,12 @@ jobs:
             # Build Docker images
             echo "🔨 Building Docker images..."
             $DOCKER_CMD build -t portfolio-client:latest ./client
-            $DOCKER_CMD build -t llm-service:latest ./services/llm-service
             $DOCKER_CMD build -t file-service:latest ./services/file-service
 
             # Deploy to Kubernetes
             echo "☸️  Deploying to Kubernetes..."
             kubectl apply -f k8s/namespace.yaml
             kubectl apply -f k8s/configmap.yaml -n portfolio
-            kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
             kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
             kubectl apply -f k8s/client-deployment.yaml -n portfolio
 

@@ -1,6 +1,6 @@
 # Windows XP Portfolio - Monorepo
 
-A full-stack portfolio application with a Windows XP-style UI, featuring a local LLM chat service with RAG capabilities and file storage.
+A full-stack portfolio application with a Windows XP-style UI, featuring a browser-based AI chat assistant powered by Transformers.js and file storage.
 
 ## 🏗️ Architecture
 
@@ -8,9 +8,8 @@ This monorepo contains:
 
 ```
 .
-├── client/                    # React/TypeScript frontend
+├── client/                    # React/TypeScript frontend with browser-based AI
 ├── services/
-│   ├── llm-service/          # Python FastAPI LLM service with RAG
 │   └── file-service/         # Python FastAPI file storage service
 ├── nginx/                    # Nginx API gateway configuration
 ├── k8s/                      # Kubernetes manifests
@@ -25,33 +24,26 @@ All requests go through an Nginx gateway that routes to appropriate services:
 Client Request → Nginx Gateway (:80)
                      ↓
     ┌────────────────┼────────────────┐
-    ↓                ↓                ↓
-/api/llm/*      /api/files/*        /*
-    ↓                ↓                ↓
-LLM Service    File Service      Client
-  (:8000)         (:8001)         (:80)
+    ↓                                 ↓
+/api/files/*                         /*
+    ↓                                 ↓
+File Service                       Client (with browser-based AI)
+  (:8001)                            (:80)
 ```
 
 ## 🚀 Services
 
 ### Client (Frontend)
-- **Technology**: React 19, TypeScript, Vite
+- **Technology**: React 19, TypeScript, Vite, Transformers.js
 - **Features**:
   - Windows XP-style UI
-  - Real-time chat with streaming support
+  - Browser-based AI chat assistant (Flan-T5-Small model)
+  - Real-time chat with streaming simulation
   - File upload/download capabilities
   - React Query for caching
-  - Axios for HTTP requests with SSE support
+  - Runs completely in the browser - no backend AI service needed
+  - Portfolio data embedded as system prompt
 - **Port**: 80
-
-### LLM Service (Backend)
-- **Technology**: Python, FastAPI, PyTorch, Transformers
-- **Features**:
-  - Local LLaMA model (TinyLlama by default)
-  - RAG (Retrieval-Augmented Generation) with FAISS
-  - Streaming responses via Server-Sent Events
-  - Sentence transformers for embeddings
-- **Port**: 8000
 
 ### File Service (Backend)
 - **Technology**: Python, FastAPI
@@ -82,8 +74,7 @@ Kubernetes is the deployment method for this application, providing scalability,
 #### Prerequisites
 - Kubernetes cluster (minikube, kind, GKE, EKS, AKS, etc.)
 - kubectl configured to access your cluster
-- At least 8GB RAM available for the LLM service
-- 10GB+ free disk space for model downloads
+- Modern browser with WebAssembly support (for browser-based AI)
 
 #### Deploy to Kubernetes
 
@@ -97,7 +88,6 @@ kubectl apply -k k8s/
 # Or manual deployment
 kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/configmap.yaml -n portfolio
-kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
 kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
 kubectl apply -f k8s/client-deployment.yaml -n portfolio
 kubectl apply -f k8s/nginx-gateway-deployment.yaml -n portfolio
@@ -114,11 +104,10 @@ See the [Kubernetes README](k8s/README.md) for detailed deployment instructions,
 
 ### Access the Application
 - **Application**: http://localhost:8080 (K8s port-forward) or http://<node-ip>:30080 (NodePort)
-- **LLM API**: http://localhost:8080/api/llm/*
 - **File API**: http://localhost:8080/api/files/*
 - **Health Check**: http://localhost:8080/health
 
-**Note**: All services are accessed through the Nginx gateway. Direct service ports (8000, 8001) are not exposed externally.
+**Note**: The AI chat assistant runs entirely in your browser using Transformers.js - no backend AI service needed!
 
 ## 🛠️ Local Development
 
@@ -130,11 +119,10 @@ cd client
 # Install dependencies
 npm install
 
-# Create .env.local file
+# Create .env.local file (optional)
 cp .env.example .env.local
 
-# Edit .env.local with your service URLs
-# VITE_LLM_SERVICE_URL=http://localhost:8000
+# Edit .env.local if needed (defaults work fine)
 # VITE_FILE_SERVICE_URL=http://localhost:8001
 
 # Run development server
@@ -144,21 +132,7 @@ npm run dev
 npm run build
 ```
 
-### LLM Service
-
-```bash
-cd services/llm-service
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the service
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
+**Note**: The AI chat assistant is built into the client and runs in the browser - no separate service needed!
 
 ### File Service
 
@@ -239,28 +213,13 @@ This repository is configured with GitHub Actions for automatic deployment to pr
 
 ## 📝 API Documentation
 
-### LLM Service API
+### AI Chat Assistant
 
-**POST /chat**
-```json
-{
-  "message": "Tell me about Moshe's experience",
-  "history": [],
-  "use_rag": true
-}
-```
+The AI chat assistant runs entirely in the browser using Transformers.js. No API calls needed - just open the chat window and start asking questions about Moshe's professional background!
 
-**POST /chat/stream**
-Streaming endpoint with Server-Sent Events
-
-**GET /health**
-Health check endpoint
-
-**POST /rag/index**
-Index documents for RAG
-
-**GET /rag/search?query=experience&top_k=5**
-Search RAG index
+**Model**: Flan-T5-Small (~80MB)
+**Context**: Portfolio data embedded as system prompt
+**Streaming**: Simulated token-by-token streaming for better UX
 
 ### File Service API
 
@@ -300,16 +259,9 @@ The project supports separate environment configurations:
 ### Environment Variables
 
 #### Client
-- `VITE_LLM_SERVICE_URL`: LLM service URL (default: /api/llm - via gateway)
 - `VITE_FILE_SERVICE_URL`: File service URL (default: /api/files - via gateway)
 
-**Note**: With the nginx gateway, services are accessed via `/api/*` paths instead of direct ports.
-
-#### LLM Service
-- `LLM_MODEL_NAME`: HuggingFace model name (default: TinyLlama/TinyLlama-1.1B-Chat-v1.0)
-- `LLM_MAX_LENGTH`: Max token length (default: 2048)
-- `LLM_TEMPERATURE`: Generation temperature (default: 0.7)
-- `RAG_DATA_FILE`: Path to resume data JSON (default: data/resume_data.json)
+**Note**: The AI assistant runs in the browser - no backend LLM configuration needed!
 
 #### File Service
 - `STORAGE_PATH`: File storage path (default: /data/files)
@@ -345,19 +297,14 @@ kubectl apply -k k8s/
 
 ### Client Features
 - ✅ Windows XP-style retro UI
-- ✅ Real-time chat with streaming responses
+- ✅ Browser-based AI chat assistant (Transformers.js)
+- ✅ Real-time chat with streaming simulation
+- ✅ Portfolio data embedded as system prompt
 - ✅ File upload/download
 - ✅ Responsive design
 - ✅ API client with caching (React Query)
 - ✅ TypeScript for type safety
-
-### LLM Service Features
-- ✅ Local LLaMA model execution
-- ✅ RAG with FAISS vector store
-- ✅ Streaming responses via SSE
-- ✅ Document indexing
-- ✅ Semantic search
-- ✅ CPU and GPU support
+- ✅ Runs entirely in browser - no AI backend needed!
 
 ### File Service Features
 - ✅ File upload/download
@@ -383,10 +330,9 @@ app.add_middleware(
 
 ## 📦 Storage Requirements
 
-- **LLM Model Cache**: ~5-10GB for TinyLlama model
+- **Browser Model Cache**: ~80MB for Flan-T5-Small (downloaded on first use)
 - **File Storage**: Configure based on expected usage
 - **Kubernetes PVCs**:
-  - LLM model cache: 10Gi (ReadWriteOnce)
   - File storage: 20Gi (ReadWriteMany)
 
 ## 🤝 Contributing
@@ -409,8 +355,14 @@ For issues or questions:
 
 ## 🔄 Version History
 
-### v1.0.0 (Current)
+### v2.0.0 (Current)
+- Migrated to browser-based AI using Transformers.js
+- Removed backend LLM service for lighter deployment
+- Portfolio data embedded as system prompt
+- Flan-T5-Small model running in browser
+
+### v1.0.0
 - Initial monorepo setup
-- LLM service with RAG
+- Backend LLM service with RAG
 - File service
 - Kubernetes deployment with nginx gateway

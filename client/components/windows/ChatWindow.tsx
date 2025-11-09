@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { sendChatMessageStream, Message as APIMessage } from '../../services/chatService';
+import { browserLLM } from '../../services/browserLLMService';
 
 interface Message {
   type: 'prompt' | 'response' | 'system';
@@ -12,18 +12,41 @@ const ChatWindow: React.FC = () => {
     { type: 'system', text: 'Microsoft Windows XP [Version 5.1.2600]' },
     { type: 'system', text: '(C) Copyright 1985-2001 Microsoft Corp.' },
     { type: 'system', text: ' ' },
-    { type: 'system', text: "Welcome! Ask me anything about Moshe's professional background." },
+    { type: 'system', text: 'Initializing AI assistant...' },
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history]);
 
+  // Initialize the browser-based LLM on component mount
+  useEffect(() => {
+    const initializeLLM = async () => {
+      try {
+        await browserLLM.initialize();
+        setHistory(prev => [
+          ...prev.slice(0, -1), // Remove "Initializing..." message
+          { type: 'system', text: "AI assistant ready! Ask me anything about Moshe's professional background." },
+        ]);
+        setIsInitialized(true);
+      } catch (error) {
+        console.error('Failed to initialize LLM:', error);
+        setHistory(prev => [
+          ...prev.slice(0, -1),
+          { type: 'system', text: 'Error: Failed to load AI assistant. Please refresh the page.' },
+        ]);
+      }
+    };
+
+    initializeLLM();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || !isInitialized) return;
 
     const userMessage: Message = { type: 'prompt', text: input };
     const currentInput = input;
@@ -31,23 +54,11 @@ const ChatWindow: React.FC = () => {
     setInput('');
     setIsLoading(true);
 
-    // Build history for API
-    const apiHistory: APIMessage[] = history
-      .filter(msg => msg.type !== 'system')
-      .map(msg => ({
-        role: msg.type === 'prompt' ? 'user' : 'assistant',
-        content: msg.text,
-      }));
-
     let streamedResponse = '';
 
     try {
-      await sendChatMessageStream(
-        {
-          message: currentInput,
-          history: apiHistory,
-          use_rag: true,
-        },
+      await browserLLM.chatStream(
+        currentInput,
         // onToken
         (token: string) => {
           streamedResponse += token;
@@ -63,32 +74,29 @@ const ChatWindow: React.FC = () => {
             return newHistory;
           });
         },
-        // onSources
-        (sources: string[]) => {
-          console.log('Sources:', sources);
+        // onComplete
+        () => {
+          setIsLoading(false);
         },
         // onError
-        (error: string) => {
-          console.error('Stream error:', error);
+        (error: Error) => {
+          console.error('Chat error:', error);
           if (!streamedResponse) {
-            const errorMessage: Message = { 
-              type: 'response', 
-              text: 'An error occurred. Please check if the backend service is running.' 
+            const errorMessage: Message = {
+              type: 'response',
+              text: 'An error occurred while generating the response. Please try again.'
             };
             setHistory(prev => [...prev, errorMessage]);
           }
-        },
-        // onDone
-        () => {
           setIsLoading(false);
         }
       );
     } catch (error) {
       console.error('Chat error:', error);
       if (!streamedResponse) {
-        const errorMessage: Message = { 
-          type: 'response', 
-          text: 'An error occurred. Please check if the backend service is running.' 
+        const errorMessage: Message = {
+          type: 'response',
+          text: 'An error occurred while generating the response. Please try again.'
         };
         setHistory(prev => [...prev, errorMessage]);
       }
@@ -121,7 +129,8 @@ const ChatWindow: React.FC = () => {
                 </div>
             );
         })}
-        {isLoading && <div className="animate-pulse">AI is thinking...</div>}
+        {isLoading && <div className="animate-pulse">Generating response...</div>}
+        {!isInitialized && !isLoading && <div className="text-yellow-400">Loading AI model... This may take a minute on first load.</div>}
         <div ref={endOfMessagesRef} />
       </div>
       <form onSubmit={handleSubmit} className="flex items-center mt-2">
