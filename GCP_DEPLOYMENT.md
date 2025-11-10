@@ -86,7 +86,7 @@ gcloud container clusters create $CLUSTER_NAME \
 gcloud container clusters get-credentials $CLUSTER_NAME --zone=$ZONE
 ```
 
-**Note**: The LLM service requires significant memory (4-8GB). The `e2-standard-4` machine type provides 4 vCPUs and 16GB RAM. Adjust based on your needs:
+**Note**: The client includes a browser-based AI chat assistant using Transformers.js. The `e2-standard-4` machine type provides 4 vCPUs and 16GB RAM which is recommended for production. Adjust based on your needs:
 - **Smaller/Testing**: `e2-standard-2` (2 vCPUs, 8GB RAM)
 - **Production**: `e2-standard-4` or `e2-standard-8` (8 vCPUs, 32GB RAM)
 
@@ -193,21 +193,16 @@ REGISTRY="$REGION-docker.pkg.dev/$PROJECT_ID/portfolio"
 docker build -t $REGISTRY/portfolio-client:latest ./client
 docker push $REGISTRY/portfolio-client:latest
 
-docker build -t $REGISTRY/llm-service:latest ./services/llm-service
-docker push $REGISTRY/llm-service:latest
-
 docker build -t $REGISTRY/file-service:latest ./services/file-service
 docker push $REGISTRY/file-service:latest
 
 # Update image references in Kubernetes manifests
 sed -i "s|image: portfolio-client:latest|image: $REGISTRY/portfolio-client:latest|g" k8s/client-deployment.yaml
-sed -i "s|image: llm-service:latest|image: $REGISTRY/llm-service:latest|g" k8s/llm-service-deployment.yaml
 sed -i "s|image: file-service:latest|image: $REGISTRY/file-service:latest|g" k8s/file-service-deployment.yaml
 
 # Deploy to Kubernetes
 kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/configmap.yaml -n portfolio
-kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
 kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
 kubectl apply -f k8s/client-deployment.yaml -n portfolio
 kubectl apply -f k8s/nginx-gateway-deployment.yaml -n portfolio
@@ -263,7 +258,6 @@ kubectl get pods -n portfolio
 
 # View logs for specific service
 kubectl logs -f deployment/portfolio-client -n portfolio
-kubectl logs -f deployment/llm-service -n portfolio
 kubectl logs -f deployment/file-service -n portfolio
 
 # View logs for nginx gateway
@@ -301,7 +295,6 @@ kubectl scale deployment/file-service --replicas=3 -n portfolio
 ```bash
 # Restart all deployments
 kubectl rollout restart deployment/portfolio-client -n portfolio
-kubectl rollout restart deployment/llm-service -n portfolio
 kubectl rollout restart deployment/file-service -n portfolio
 kubectl rollout restart deployment/nginx-gateway -n portfolio
 ```

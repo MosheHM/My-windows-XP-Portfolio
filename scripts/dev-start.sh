@@ -45,21 +45,6 @@ echo
 # Setup virtual environments for Python services
 echo -e "${YELLOW}Setting up Python services...${NC}"
 
-# LLM Service
-if [ ! -d "services/llm-service/venv" ]; then
-    echo "Creating virtual environment for LLM service..."
-    cd services/llm-service
-    $PYTHON_CMD -m venv venv
-    source venv/bin/activate
-    pip install -q --upgrade pip
-    pip install -q -r requirements.txt
-    deactivate
-    cd ../..
-    echo "✓ LLM service environment created"
-else
-    echo "✓ LLM service environment exists"
-fi
-
 # File Service
 if [ ! -d "services/file-service/venv" ]; then
     echo "Creating virtual environment for file service..."
@@ -111,10 +96,6 @@ echo
 # Detect OS to use appropriate terminal commands
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # macOS
-    echo "Starting LLM service..."
-    osascript -e 'tell app "Terminal" to do script "cd '"$PWD"'/services/llm-service && source venv/bin/activate && uvicorn main:app --reload --host 0.0.0.0 --port 8000"'
-    
-    sleep 2
     echo "Starting file service..."
     osascript -e 'tell app "Terminal" to do script "cd '"$PWD"'/services/file-service && source venv/bin/activate && uvicorn main:app --reload --host 0.0.0.0 --port 8001"'
     
@@ -125,10 +106,6 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     # Linux
     if command -v gnome-terminal &> /dev/null; then
-        echo "Starting LLM service..."
-        gnome-terminal -- bash -c "cd $PWD/services/llm-service && source venv/bin/activate && uvicorn main:app --reload --host 0.0.0.0 --port 8000; exec bash"
-        
-        sleep 2
         echo "Starting file service..."
         gnome-terminal -- bash -c "cd $PWD/services/file-service && source venv/bin/activate && uvicorn main:app --reload --host 0.0.0.0 --port 8001; exec bash"
         
@@ -138,25 +115,19 @@ elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     else
         echo "Please start services manually in separate terminals:"
         echo ""
-        echo "Terminal 1 - LLM Service:"
-        echo "  cd services/llm-service && source venv/bin/activate && uvicorn main:app --reload --host 0.0.0.0 --port 8000"
-        echo ""
-        echo "Terminal 2 - File Service:"
+        echo "Terminal 1 - File Service:"
         echo "  cd services/file-service && source venv/bin/activate && uvicorn main:app --reload --host 0.0.0.0 --port 8001"
         echo ""
-        echo "Terminal 3 - Client:"
+        echo "Terminal 2 - Client:"
         echo "  cd client && npm run dev"
     fi
 else
     echo "Unsupported OS. Please start services manually:"
     echo ""
-    echo "Terminal 1 - LLM Service:"
-    echo "  cd services/llm-service && source venv/bin/activate && uvicorn main:app --reload --host 0.0.0.0 --port 8000"
-    echo ""
-    echo "Terminal 2 - File Service:"
+    echo "Terminal 1 - File Service:"
     echo "  cd services/file-service && source venv/bin/activate && uvicorn main:app --reload --host 0.0.0.0 --port 8001"
     echo ""
-    echo "Terminal 3 - Client:"
+    echo "Terminal 2 - Client:"
     echo "  cd client && npm run dev"
 fi
 

@@ -62,7 +62,6 @@ ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_IP" << 
     # Build Docker images
     echo "🔨 Building Docker images..."
     docker build -t portfolio-client:latest ./client
-    docker build -t llm-service:latest ./services/llm-service
     docker build -t file-service:latest ./services/file-service
     
     # Deploy to Kubernetes
@@ -75,9 +74,6 @@ ssh -i "$SSH_KEY_PATH" -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_IP" << 
     kubectl apply -f k8s/configmap.yaml -n $NAMESPACE
     
     # Deploy services
-    echo "  Deploying LLM service..."
-    kubectl apply -f k8s/llm-service-deployment.yaml -n $NAMESPACE
-    
     echo "  Deploying file service..."
     kubectl apply -f k8s/file-service-deployment.yaml -n $NAMESPACE
     

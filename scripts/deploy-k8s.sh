@@ -46,9 +46,6 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "Building client image..."
     docker build -t portfolio-client:latest ./client
     
-    echo "Building LLM service image..."
-    docker build -t llm-service:latest ./services/llm-service
-    
     echo "Building file service image..."
     docker build -t file-service:latest ./services/file-service
     
@@ -72,11 +69,6 @@ echo -e "${GREEN}✓ ConfigMap applied${NC}"
 echo
 
 # Step 4: Deploy services
-echo -e "${YELLOW}Deploying LLM service...${NC}"
-kubectl apply -f ${K8S_DIR}/llm-service-deployment.yaml -n ${NAMESPACE}
-echo -e "${GREEN}✓ LLM service deployed${NC}"
-echo
-
 echo -e "${YELLOW}Deploying file service...${NC}"
 kubectl apply -f ${K8S_DIR}/file-service-deployment.yaml -n ${NAMESPACE}
 echo -e "${GREEN}✓ File service deployed${NC}"
@@ -94,7 +86,7 @@ echo
 
 # Step 5: Wait for deployments
 echo -e "${YELLOW}Waiting for deployments to be ready...${NC}"
-echo "This may take a few minutes, especially for the LLM service..."
+echo "This may take a few minutes..."
 echo
 
 kubectl wait --for=condition=available --timeout=600s \
@@ -104,12 +96,6 @@ echo -e "${GREEN}✓ Client is ready${NC}"
 kubectl wait --for=condition=available --timeout=600s \
     deployment/file-service -n ${NAMESPACE}
 echo -e "${GREEN}✓ File service is ready${NC}"
-
-# LLM service may take longer
-echo -e "${YELLOW}Waiting for LLM service (may take up to 5 minutes)...${NC}"
-kubectl wait --for=condition=available --timeout=600s \
-    deployment/llm-service -n ${NAMESPACE} || \
-    echo -e "${YELLOW}⚠ LLM service is still starting. Check status with: kubectl get pods -n ${NAMESPACE}${NC}"
 
 echo
 
@@ -157,7 +143,6 @@ echo -e "${GREEN}===================================${NC}"
 echo
 echo "View logs:"
 echo -e "  ${YELLOW}kubectl logs -f deployment/nginx-gateway -n ${NAMESPACE}${NC}"
-echo -e "  ${YELLOW}kubectl logs -f deployment/llm-service -n ${NAMESPACE}${NC}"
 echo -e "  ${YELLOW}kubectl logs -f deployment/file-service -n ${NAMESPACE}${NC}"
 echo -e "  ${YELLOW}kubectl logs -f deployment/portfolio-client -n ${NAMESPACE}${NC}"
 echo
