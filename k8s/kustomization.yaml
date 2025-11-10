@@ -6,7 +6,6 @@ namespace: portfolio
 resources:
   - namespace.yaml
   - configmap.yaml
-  - llm-service-deployment.yaml
   - file-service-deployment.yaml
   - client-deployment.yaml
   - nginx-gateway-deployment.yaml
