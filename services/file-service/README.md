@@ -1,6 +1,6 @@
 # File Service
 
-Python FastAPI service for file storage, upload, download, and streaming.
+Python FastAPI service for file storage, upload, download, streaming, and PDF split validation.
 
 ## Features
 
@@ -10,6 +10,7 @@ Python FastAPI service for file storage, upload, download, and streaming.
 - **File Listing**: Paginated file listing
 - **File Deletion**: Remove files and metadata
 - **Streaming**: Efficient streaming for large files
+- **PDF Split Validation**: Validate PDF split results against XML ground truth (NEW!)
 
 ## Requirements
 
@@ -57,6 +58,8 @@ docker run -p 8001:8001 -v file-storage:/data file-service
 ```
 
 ## API Endpoints
+
+### File Management Endpoints
 
 ### POST /upload
 Upload a single file
@@ -152,6 +155,35 @@ Health check
 curl http://localhost:8001/health
 ```
 
+### PDF Split Validation Endpoints (NEW!)
+
+For detailed documentation on PDF split validation, see [PDF_VALIDATION.md](PDF_VALIDATION.md).
+
+### GET /parse-xml/{file_id}
+Parse an XML ground truth file
+
+```bash
+curl http://localhost:8001/parse-xml/abc123
+```
+
+### POST /validate/pdf-split
+Validate PDF split results against XML ground truth
+
+```bash
+curl -X POST http://localhost:8001/validate/pdf-split \
+  -H "Content-Type: application/json" \
+  -d '{
+    "xml_file_id": "abc123",
+    "split_docs": [
+      {
+        "doc_type": "FSI",
+        "page_count": 1,
+        "page_numbers": [1]
+      }
+    ]
+  }'
+```
+
 ## Architecture
 
 ### Storage Structure
@@ -240,21 +272,28 @@ For high-traffic scenarios:
 ### Testing
 
 ```bash
-# Install dev dependencies
-pip install pytest pytest-asyncio httpx
+# Install dev dependencies (already in requirements.txt)
+pip install -r requirements.txt
 
-# Run tests (if tests exist)
-pytest tests/
+# Run tests
+pytest test_pdf_validator.py -v
+
+# Run example
+python example_usage.py
 ```
 
 ### Code Structure
 
 ```
 file-service/
-├── main.py              # FastAPI app and endpoints
-├── requirements.txt     # Python dependencies
-├── Dockerfile          # Docker image
-└── README.md           # This file
+├── main.py                  # FastAPI app and endpoints
+├── pdf_validator.py         # PDF split validation logic
+├── test_pdf_validator.py    # Unit tests
+├── example_usage.py         # Usage examples
+├── requirements.txt         # Python dependencies
+├── Dockerfile              # Docker image
+├── README.md               # This file
+└── PDF_VALIDATION.md       # Detailed validation docs
 ```
 
 ## Future Enhancements
@@ -266,3 +305,5 @@ file-service/
 - [ ] Automatic cleanup of old files
 - [ ] Cloud storage integration (S3, Azure)
 - [ ] File sharing with expiring links
+- [ ] PDF file analysis integration for automatic validation
+- [ ] Batch validation support

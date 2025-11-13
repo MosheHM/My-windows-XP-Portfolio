@@ -2,7 +2,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import os
 import shutil
 from pathlib import Path
@@ -10,6 +10,13 @@ import uuid
 from datetime import datetime
 import json
 import mimetypes
+import re
+from pdf_validator import (
+    validate_pdf_split,
+    parse_xml_ground_truth,
+    OverallValidationResult,
+    SplittedResultInfo
+)
 
 app = FastAPI(title="File Storage Service", version="1.0.0")
 
@@ -21,6 +28,41 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Storage configuration
+STORAGE_PATH = Path(os.getenv("STORAGE_PATH", "/data/files"))
+METADATA_PATH = Path(os.getenv("METADATA_PATH", "/data/metadata"))
+MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", 100 * 1024 * 1024))  # 100MB default
+
+# Ensure storage directories exist
+STORAGE_PATH.mkdir(parents=True, exist_ok=True)
+METADATA_PATH.mkdir(parents=True, exist_ok=True)
+
+
+def validate_file_id(file_id: str) -> str:
+    """
+    Validate and sanitize file ID to prevent path traversal attacks.
+    
+    Args:
+        file_id: The file ID to validate
+        
+    Returns:
+        Validated file ID
+        
+    Raises:
+        HTTPException: If file ID is invalid
+    """
+    # Check for path traversal attempts
+    if '..' in file_id or '/' in file_id or '\\' in file_id:
+        raise HTTPException(status_code=400, detail="Invalid file ID")
+    
+    # Validate UUID format (our file IDs are UUIDs)
+    # Allow both with and without hyphens
+    uuid_pattern = r'^[a-f0-9]{8}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{12}$'
+    if not re.match(uuid_pattern, file_id, re.IGNORECASE):
+        raise HTTPException(status_code=400, detail="Invalid file ID format")
+    
+    return file_id
 
 # Storage configuration
 STORAGE_PATH = Path(os.getenv("STORAGE_PATH", "/data/files"))
@@ -245,6 +287,113 @@ async def delete_file(file_id: str):
         metadata_file.unlink()
         
         return {"status": "success", "message": f"File {file_id} deleted"}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class SplitDocValidationInput(BaseModel):
+    """Input model for validating a split document"""
+    doc_type: str
+    page_count: int
+    page_numbers: List[int]
+
+
+class ValidationRequest(BaseModel):
+    """Request model for PDF split validation"""
+    xml_file_id: str
+    split_docs: List[SplitDocValidationInput]
+
+
+@app.post("/validate/pdf-split", response_model=OverallValidationResult)
+async def validate_pdf_split_endpoint(request: ValidationRequest):
+    """
+    Validate PDF split results against XML ground truth
+    
+    Args:
+        request: ValidationRequest containing XML file ID and actual split document info
+        
+    Returns:
+        OverallValidationResult with validation scores and details
+    """
+    try:
+        # Validate and sanitize file ID
+        file_id = validate_file_id(request.xml_file_id)
+        
+        # Load XML file metadata
+        metadata_file = METADATA_PATH / f"{file_id}.json"
+        if not metadata_file.exists():
+            raise HTTPException(status_code=404, detail="XML file not found")
+        
+        with open(metadata_file, "r") as f:
+            metadata = FileMetadata(**json.load(f))
+        
+        xml_path = Path(metadata.path)
+        if not xml_path.exists():
+            raise HTTPException(status_code=404, detail="XML file not found on disk")
+        
+        # Validate it's an XML file
+        if not xml_path.suffix.lower() == '.xml':
+            raise HTTPException(status_code=400, detail="File must be an XML file")
+        
+        # Convert input to dict format expected by validator
+        actual_split_info = [
+            {
+                'doc_type': doc.doc_type,
+                'page_count': doc.page_count,
+                'page_numbers': doc.page_numbers
+            }
+            for doc in request.split_docs
+        ]
+        
+        # Perform validation
+        result = validate_pdf_split(xml_path, actual_split_info)
+        
+        return result
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/parse-xml/{file_id}", response_model=SplittedResultInfo)
+async def parse_xml_endpoint(file_id: str):
+    """
+    Parse XML ground truth file and return structured information
+    
+    Args:
+        file_id: ID of the uploaded XML file
+        
+    Returns:
+        SplittedResultInfo with parsed XML structure
+    """
+    try:
+        # Validate and sanitize file ID
+        file_id = validate_file_id(file_id)
+        
+        # Load metadata
+        metadata_file = METADATA_PATH / f"{file_id}.json"
+        if not metadata_file.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        with open(metadata_file, "r") as f:
+            metadata = FileMetadata(**json.load(f))
+        
+        xml_path = Path(metadata.path)
+        if not xml_path.exists():
+            raise HTTPException(status_code=404, detail="File not found on disk")
+        
+        # Validate it's an XML file
+        if not xml_path.suffix.lower() == '.xml':
+            raise HTTPException(status_code=400, detail="File must be an XML file")
+        
+        # Parse XML
+        result = parse_xml_ground_truth(xml_path)
+        
+        return result
     
     except HTTPException:
         raise
