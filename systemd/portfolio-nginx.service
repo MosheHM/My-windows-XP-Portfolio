@@ -1,8 +1,8 @@
 [Unit]
 Description=Portfolio Nginx Gateway
-After=network.target docker.service portfolio-client.service portfolio-file-service.service
+After=network.target docker.service portfolio-client.service portfolio-file-service.service portfolio-llm-service.service
 Requires=docker.service
-Wants=portfolio-client.service portfolio-file-service.service
+Wants=portfolio-client.service portfolio-file-service.service portfolio-llm-service.service
 
 [Service]
 Type=simple

@@ -23,7 +23,7 @@ echo ""
 
 # Step 1: Create Docker network
 echo "Step 1: Creating Docker network..."
-if ! docker network ls | grep -q portfolio-network; then
+if ! docker network inspect portfolio-network >/dev/null 2>&1; then
     docker network create portfolio-network
     echo "✓ Created portfolio-network"
 else
