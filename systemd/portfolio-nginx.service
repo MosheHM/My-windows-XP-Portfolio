@@ -1,0 +1,22 @@
+[Unit]
+Description=Portfolio Nginx Gateway
+After=network.target docker.service portfolio-client.service portfolio-file-service.service portfolio-llm-service.service
+Requires=docker.service
+Wants=portfolio-client.service portfolio-file-service.service portfolio-llm-service.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=10s
+WorkingDirectory=/opt/portfolio
+ExecStartPre=-/usr/bin/docker stop portfolio-nginx
+ExecStartPre=-/usr/bin/docker rm portfolio-nginx
+ExecStart=/usr/bin/docker run --rm \
+    --name portfolio-nginx \
+    -p 80:80 \
+    --network portfolio-network \
+    portfolio-nginx:latest
+ExecStop=/usr/bin/docker stop portfolio-nginx
+
+[Install]
+WantedBy=multi-user.target
