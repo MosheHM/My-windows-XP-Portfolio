@@ -65,16 +65,15 @@ Complete overview of the Windows XP Portfolio monorepo structure.
 │   ├── nginx.conf                  # Gateway configuration
 │   └── README.md                   # Gateway documentation
 │
-├── k8s/                            # Kubernetes manifests
-│   ├── namespace.yaml              # Portfolio namespace
-│   ├── configmap.yaml              # Configuration values
-│   ├── client-deployment.yaml      # Client deployment & service
-│   ├── llm-service-deployment.yaml # LLM deployment, service & PVC
-│   ├── file-service-deployment.yaml# File deployment, service & PVC
-│   └── README.md                   # Kubernetes guide
+├── systemd/                        # Systemd service files
+│   ├── portfolio-client.service    # Client service
+│   ├── portfolio-file-service.service  # File service
+│   ├── portfolio-llm-service.service   # LLM service
+│   ├── portfolio-nginx.service     # Nginx gateway service
+│   ├── setup.sh                    # Installation script
+│   └── README.md                   # Systemd guide
 │
 ├── scripts/                        # Automation scripts
-│   ├── deploy-k8s.sh              # Kubernetes deployment script
 │   └── dev-start.sh               # Local development starter
 │
 ├── .env.development                # Development configuration

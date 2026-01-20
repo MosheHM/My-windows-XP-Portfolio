@@ -48,19 +48,20 @@ The main configuration file that defines:
 
 ## Usage
 
-### With Kubernetes
+### With Systemd
 
-The nginx gateway is deployed as part of the Kubernetes cluster:
+The nginx gateway is deployed using systemd to manage the Docker container:
 
 ```bash
-# Automated deployment
-./scripts/deploy-k8s.sh
+# Build the image
+docker build -t portfolio-nginx:latest .
 
-# Or using Kustomize
-kubectl apply -k k8s/
-
-# Access via port-forward
-kubectl port-forward service/nginx-gateway 8080:80 -n portfolio
+# Install and start systemd service
+cd ../systemd
+sudo cp portfolio-nginx.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable portfolio-nginx
+sudo systemctl start portfolio-nginx
 ```
 
 ### Standalone (Development/Testing)

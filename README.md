@@ -12,7 +12,7 @@ This monorepo contains:
 ├── services/
 │   └── file-service/         # Python FastAPI file storage service
 ├── nginx/                    # Nginx API gateway configuration
-├── k8s/                      # Kubernetes manifests
+├── systemd/                  # Systemd service files
 └── scripts/                  # Deployment and utility scripts
 ```
 
@@ -67,45 +67,50 @@ File Service                       Client (with browser-based AI)
 
 ## 🚀 Quick Start
 
-### Kubernetes Deployment
+### Systemd Deployment
 
-Kubernetes is the deployment method for this application, providing scalability, high availability, and production-ready features.
+The application is deployed using systemd service files to manage Docker containers.
 
 #### Prerequisites
-- Kubernetes cluster (minikube, kind, GKE, EKS, AKS, etc.)
-- kubectl configured to access your cluster
+- Linux system with systemd
+- Docker installed
 - Modern browser with WebAssembly support (for browser-based AI)
 
-#### Deploy to Kubernetes
+#### Deploy with Systemd
 
 ```bash
-# Automated deployment (recommended)
-./scripts/deploy-k8s.sh
+# Build Docker images
+cd client
+docker build -t portfolio-client:latest .
 
-# Or using Kustomize
-kubectl apply -k k8s/
+cd ../services/file-service
+docker build -t portfolio-file-service:latest .
 
-# Or manual deployment
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/configmap.yaml -n portfolio
-kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
-kubectl apply -f k8s/client-deployment.yaml -n portfolio
-kubectl apply -f k8s/nginx-gateway-deployment.yaml -n portfolio
+cd ../../nginx
+docker build -t portfolio-nginx:latest .
+
+# Create Docker network
+docker network create portfolio-network
+
+# Install systemd services
+cd ../systemd
+sudo cp *.service /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# Enable and start services
+sudo systemctl enable portfolio-client portfolio-file-service portfolio-nginx
+sudo systemctl start portfolio-client portfolio-file-service portfolio-nginx
 
 # Check status
-kubectl get pods -n portfolio
-
-# Access the application
-kubectl port-forward service/nginx-gateway 8080:80 -n portfolio
-# Then visit http://localhost:8080
+sudo systemctl status portfolio-*
 ```
 
-See the [Kubernetes README](k8s/README.md) for detailed deployment instructions, troubleshooting, and production best practices.
+See the [Systemd README](systemd/README.md) for detailed deployment instructions and service management.
 
 ### Access the Application
-- **Application**: http://localhost:8080 (K8s port-forward) or http://<node-ip>:30080 (NodePort)
-- **File API**: http://localhost:8080/api/files/*
-- **Health Check**: http://localhost:8080/health
+- **Application**: http://localhost
+- **File API**: http://localhost/api/files/*
+- **Health Check**: http://localhost/health
 
 **Note**: The AI chat assistant runs entirely in your browser using Transformers.js - no backend AI service needed!
 
@@ -150,66 +155,75 @@ pip install -r requirements.txt
 uvicorn main:app --reload --host 0.0.0.0 --port 8001
 ```
 
-## ☸️ Kubernetes Deployment
+## ☸️ Deployment
 
-Kubernetes is the **recommended deployment method** for this application. It provides scalability, high availability, and production-ready features.
+The application is deployed using systemd to manage Docker containers. This provides a lightweight and straightforward deployment method.
 
-For detailed Kubernetes deployment instructions, troubleshooting, and best practices, see the **[Kubernetes README](k8s/README.md)**.
+For detailed deployment instructions using systemd, see the **[Systemd README](systemd/README.md)**.
 
 ### Quick Deploy
 
 ```bash
-# Automated deployment (easiest method)
-./scripts/deploy-k8s.sh
+# Build Docker images
+./scripts/build-images.sh  # You can create this or build manually
 
-# Or using Kustomize
-kubectl apply -k k8s/
+# Install systemd services
+cd systemd
+sudo cp *.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable portfolio-*
+sudo systemctl start portfolio-*
 
-# Access the application
-kubectl port-forward service/nginx-gateway 8080:80 -n portfolio
-# Visit http://localhost:8080
+# Check status
+sudo systemctl status portfolio-*
 ```
 
 ### Key Features
 
 - **API Gateway**: Nginx-based gateway for routing and load balancing
-- **High Availability**: Multiple replicas for client and file service
-- **Persistent Storage**: Dedicated PVCs for model cache and file storage
-- **Resource Management**: CPU and memory limits/requests
-- **Health Checks**: Liveness and readiness probes
-- **Scalability**: Easy horizontal scaling with kubectl
+- **Service Management**: Systemd for process supervision and automatic restarts
+- **Persistent Storage**: Docker volumes for file storage
+- **Resource Management**: Docker container resource limits
+- **Health Checks**: Automatic service restart on failure
 
-See [k8s/README.md](k8s/README.md) for complete documentation.
+See [systemd/README.md](systemd/README.md) for complete documentation.
 
-## 🚀 Production Deployment (Auto-Deploy with Kubernetes)
+## 🚀 Production Deployment
 
-This repository is configured with GitHub Actions for automatic deployment to production using Kubernetes.
+This repository supports deployment to production using systemd for service management.
 
 ### Quick Setup
 
-1. **Prepare your server** (Ubuntu/Debian at 129.159.130.84):
+1. **Prepare your server**:
    ```bash
-   # Copy and run the setup script on your server
-   # This installs Docker, kubectl, and k3s (lightweight Kubernetes)
-   ./scripts/setup-server.sh
-   ```
-
-2. **Configure GitHub Secrets:**
-   - `SSH_PRIVATE_KEY` - Your SSH private key for server access
-   - `SERVER_IP` - Your server IP (129.159.130.84)
-   - `SERVER_USER` - SSH username (e.g., ubuntu)
-   - `DOMAIN` - Your domain (moshe-makies.dev)
-
-3. **Deploy:**
-   ```bash
-   # Automatic: Push to main branch
-   git push origin main
+   # Install Docker if not already installed
+   curl -fsSL https://get.docker.com -o get-docker.sh
+   sudo sh get-docker.sh
    
-   # Manual: Use deployment script
-   ./scripts/deploy-remote.sh
+   # Clone the repository
+   git clone https://github.com/MosheHM/My-windows-XP-Portfolio.git
+   cd My-windows-XP-Portfolio
    ```
 
-📖 **For detailed deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md)**
+2. **Build and deploy:**
+   ```bash
+   # Build Docker images
+   docker build -t portfolio-client:latest ./client
+   docker build -t portfolio-file-service:latest ./services/file-service
+   docker build -t portfolio-nginx:latest ./nginx
+   
+   # Create Docker network
+   docker network create portfolio-network
+   
+   # Install and start systemd services
+   cd systemd
+   sudo cp *.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable portfolio-*
+   sudo systemctl start portfolio-*
+   ```
+
+📖 **For detailed deployment instructions, see [systemd/README.md](systemd/README.md)**
 
 ## 📝 API Documentation
 
@@ -273,13 +287,15 @@ The project supports separate environment configurations:
 
 ### Deployment Methods
 
-**Kubernetes**:
+**Systemd**:
 ```bash
-# Deploy to Kubernetes cluster
-./scripts/deploy-k8s.sh
-
-# Or using Kustomize
-kubectl apply -k k8s/
+# Build Docker images and deploy with systemd
+# See systemd/README.md for details
+cd systemd
+sudo cp *.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable portfolio-*
+sudo systemctl start portfolio-*
 ```
 
 **Local Development** (individual services):
@@ -288,7 +304,6 @@ kubectl apply -k k8s/
 ./scripts/dev-start.sh
 
 # This will set up and start:
-# - LLM Service on http://localhost:8000
 # - File Service on http://localhost:8001  
 # - Client on http://localhost:5173
 ```
@@ -332,14 +347,14 @@ app.add_middleware(
 
 - **Browser Model Cache**: ~80MB for Flan-T5-Small (downloaded on first use)
 - **File Storage**: Configure based on expected usage
-- **Kubernetes PVCs**:
-  - File storage: 20Gi (ReadWriteMany)
+- **Docker Volumes**:
+  - File storage: Configurable via Docker volume mounts
 
 ## 🤝 Contributing
 
 1. Create a feature branch
 2. Make your changes
-3. Test locally (use ./scripts/dev-start.sh or deploy to K8s)
+3. Test locally (use ./scripts/dev-start.sh for development)
 4. Submit a pull request
 
 ## 📄 License
@@ -360,9 +375,10 @@ For issues or questions:
 - Removed backend LLM service for lighter deployment
 - Portfolio data embedded as system prompt
 - Flan-T5-Small model running in browser
+- Systemd-based deployment
 
 ### v1.0.0
 - Initial monorepo setup
 - Backend LLM service with RAG
 - File service
-- Kubernetes deployment with nginx gateway
+- Nginx gateway

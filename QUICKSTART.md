@@ -2,9 +2,14 @@
 
 Get the Windows XP Portfolio up and running in minutes.
 
-## Option 1: Kubernetes Deployment
+## Option 1: Systemd Deployment
 
-Deploy to a Kubernetes cluster for production-ready infrastructure with scalability and high availability.
+Deploy to a Linux server using systemd for production-ready service management.
+
+### Prerequisites
+- Linux system with systemd
+- Docker installed
+- At least 4GB RAM and 10GB disk space
 
 ### Automated Deployment
 
@@ -13,53 +18,39 @@ Deploy to a Kubernetes cluster for production-ready infrastructure with scalabil
 git clone https://github.com/MosheHM/My-windows-XP-Portfolio.git
 cd My-windows-XP-Portfolio
 
-# Run the automated deployment script
-./scripts/deploy-k8s.sh
+# Build Docker images
+docker build -t portfolio-client:latest ./client
+docker build -t portfolio-file-service:latest ./services/file-service
+docker build -t portfolio-nginx:latest ./nginx
 
-# Follow the prompts to build images (optional) and deploy
-# The script will show you how to access the application
-```
+# Create Docker network
+docker network create portfolio-network
 
-### Manual Deployment
-
-```bash
-# Using Kustomize (easiest)
-kubectl apply -k k8s/
-
-# Or deploy manually
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/configmap.yaml -n portfolio
-kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
-kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
-kubectl apply -f k8s/client-deployment.yaml -n portfolio
-kubectl apply -f k8s/nginx-gateway-deployment.yaml -n portfolio
+# Install and start systemd services
+cd systemd
+sudo cp *.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable portfolio-client portfolio-file-service portfolio-nginx
+sudo systemctl start portfolio-client portfolio-file-service portfolio-nginx
 
 # Check status
-kubectl get pods -n portfolio
-
-# Access the application via port-forward
-kubectl port-forward service/nginx-gateway 8080:80 -n portfolio
-# Visit http://localhost:8080
+sudo systemctl status portfolio-*
 ```
 
-**What happens:**
-- Nginx gateway deployed with 2 replicas (NodePort on 30080)
-- Client deployed with 2 replicas
-- LLM service with persistent model cache (10Gi PVC)
-- File service with 2 replicas and persistent storage (20Gi PVC)
-- All services communicate through the nginx gateway
+### Access the Application
 
-**Requirements:**
-- Kubernetes cluster (minikube, kind, GKE, EKS, AKS, etc.)
-- kubectl configured
-- 8GB+ RAM available for the cluster
-- 30GB+ storage for PVCs
+Visit http://localhost (or your server's IP address)
 
-**See [k8s/README.md](k8s/README.md) for detailed documentation.**
+**What's running:**
+- Nginx gateway on port 80
+- Client service (internal)
+- File service on port 8001 (internal, accessed via gateway)
+
+**See [systemd/README.md](systemd/README.md) for detailed documentation.**
 
 ## Option 2: Local Development
 
-Run services individually for local development without Kubernetes.
+Run services individually for local development without Docker.
 
 ### Automated Setup
 
@@ -80,24 +71,6 @@ cd My-windows-XP-Portfolio
 ### Manual Setup
 
 #### 1. Start Backend Services
-
-##### LLM Service
-
-```bash
-cd services/llm-service
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install dependencies (this will download PyTorch and transformers)
-pip install -r requirements.txt
-
-# Run the service
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-First run downloads the TinyLlama model (~2GB). Subsequent runs are instant.
 
 ##### File Service
 
@@ -133,7 +106,6 @@ npm run dev
 Access at http://localhost:5173
 
 **What's running:**
-- LLM Service: http://localhost:8000 (API docs at /docs)
 - File Service: http://localhost:8001 (API docs at /docs)
 - Client: http://localhost:5173
 
@@ -141,29 +113,27 @@ Access at http://localhost:5173
 
 ### Check Services are Running
 
-**With Kubernetes:**
+**With Systemd:**
 
 ```bash
-# Check all pods
-kubectl get pods -n portfolio
+# Check all services
+sudo systemctl status portfolio-*
 
-# Gateway health check (via port-forward)
-kubectl port-forward service/nginx-gateway 8080:80 -n portfolio &
-curl http://localhost:8080/health
+# Check logs
+sudo journalctl -u portfolio-client -f
+sudo journalctl -u portfolio-file-service -f
+sudo journalctl -u portfolio-nginx -f
 
-# LLM Service (via gateway)
-curl http://localhost:8080/api/llm/health
+# Gateway health check
+curl http://localhost/health
 
 # File Service (via gateway)
-curl http://localhost:8080/api/files/health
+curl http://localhost/api/files/health
 ```
 
 **For local development (direct access):**
 
 ```bash
-# LLM Service
-curl http://localhost:8000/health
-
 # File Service
 curl http://localhost:8001/health
 
@@ -176,29 +146,18 @@ curl http://localhost:5173
 1. Open the application in your browser
 2. Click on the "Command Prompt" icon
 3. Type a question like "Tell me about Moshe's experience"
-4. You should see a streaming response
+4. You should see a streaming response (runs in browser using Transformers.js)
 
 ### Test File Upload
 
 1. Create a test file: `echo "Test content" > test.txt`
 2. Upload via API:
 ```bash
-curl -X POST http://localhost:8001/upload \
+curl -X POST http://localhost/api/files/upload \
   -F "file=@test.txt"
 ```
 
 ## Troubleshooting
-
-### LLM Service Issues
-
-**Problem:** Out of memory
-- **Solution:** Use a machine with at least 8GB RAM or close other applications
-
-**Problem:** Model download fails
-- **Solution:** Check internet connection, model downloads to `~/.cache/huggingface/`
-
-**Problem:** Slow responses
-- **Solution:** First response is slower (model loading). Subsequent responses are faster.
 
 ### Client Issues
 
@@ -215,31 +174,38 @@ curl -X POST http://localhost:8001/upload \
 - **Solution:** Check file size is under 100MB (default limit)
 - **Solution:** Ensure storage directory has write permissions
 
+### Systemd Service Issues
+
+**Problem:** Service won't start
+- **Solution:** Check logs with `sudo journalctl -u portfolio-<service-name> -n 50`
+- **Solution:** Verify Docker is running: `sudo systemctl status docker`
+
+**Problem:** Port conflicts
+- **Solution:** Ensure ports 80, 3000, and 8001 are not in use
+
 ## Next Steps
 
 - Read the full [README.md](README.md)
-- Explore [API documentation](http://localhost:8000/docs) (FastAPI auto-docs)
+- Explore [API documentation](http://localhost:8001/docs) (FastAPI auto-docs)
 - Check individual service READMEs:
   - [Client](client/README.md)
-  - [LLM Service](services/llm-service/README.md)
   - [File Service](services/file-service/README.md)
-  - [Kubernetes](k8s/README.md)
+  - [Systemd Services](systemd/README.md)
 
 ## System Requirements
 
 ### Minimum
 
 - **CPU:** 2 cores
-- **RAM:** 4GB (8GB recommended)
+- **RAM:** 4GB
 - **Disk:** 10GB free space
-- **OS:** Linux, macOS, or Windows with WSL2
+- **OS:** Linux with systemd (Ubuntu 18.04+, Debian 10+, etc.)
 
 ### Recommended
 
 - **CPU:** 4+ cores
-- **RAM:** 16GB
+- **RAM:** 8GB
 - **Disk:** 20GB+ free space
-- **GPU:** NVIDIA GPU with CUDA for faster inference (optional)
 
 ## Getting Help
 
@@ -255,40 +221,26 @@ curl -X POST http://localhost:8001/upload \
 3. **Make changes** - client auto-reloads
 4. **Test** - check chat and file operations
 5. **Build** - `npm run build` in client directory
-6. **Deploy** - via Kubernetes
+6. **Deploy** - via systemd
 
 ## Production Deployment
 
-For production, use Kubernetes:
+For production, use systemd:
 
 1. Update CORS settings in backend services (restrict origins)
 2. Add authentication/authorization
 3. Use environment-specific configs
 4. Set up monitoring (health checks, logs)
-5. Configure backups (file storage, model cache)
-6. Set up SSL/TLS certificates (using Ingress)
-7. Scale services based on load
-8. Use persistent volumes for data
+5. Configure backups (file storage)
+6. Set up SSL/TLS certificates (configure in nginx)
+7. Configure firewall rules
+8. Use Docker volumes for persistent data
 
 ## Tips
 
-- **First run:** LLM service downloads model (~2-3 minutes)
-- **Subsequent runs:** Much faster (model is cached)
 - **Development:** Use `./scripts/dev-start.sh` for local development
-- **Production:** Use Kubernetes for scalability and high availability
-- **GPU:** If available, LLM service auto-detects and uses it
-- **Model size:** TinyLlama is lightweight. Can upgrade to Llama 2 or Mistral for better quality
-
-## Deployment Comparison
-
-| Feature | Kubernetes | Local Dev |
-|---------|-----------|-----------|
-| **Best for** | Production | Development |
-| **Scalability** | ✅ Excellent | ❌ None |
-| **High Availability** | ✅ Built-in | ❌ None |
-| **Resource Management** | ✅ Full control | ❌ Manual |
-| **Setup Complexity** | ⚠️ Moderate | ✅ Easy |
-| **Rolling Updates** | ✅ Zero downtime | ❌ Manual |
-| **Load Balancing** | ✅ Automatic | ❌ None |
+- **Production:** Use systemd for automatic restarts and service management
+- **AI Chat:** Runs entirely in browser - no backend AI service needed!
+- **Browser cache:** First visit downloads AI model (~80MB), subsequent visits are instant
 
 Enjoy your Windows XP Portfolio! 🎉
