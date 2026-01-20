@@ -33,7 +33,8 @@ cd ../../client && npm install
 ├── services/
 │   ├── llm-service/       # Python LLM service
 │   └── file-service/      # Python file service
-├── k8s/                   # Kubernetes manifests
+├── systemd/               # Systemd service files
+├── nginx/                 # Nginx gateway
 └── scripts/               # Deployment scripts
 ```
 
@@ -107,18 +108,19 @@ async def process_data(data: List[str]) -> Optional[dict]:
 4. Check syntax: `python -m py_compile *.py`
 5. Update API documentation in README if endpoints change
 
-### Kubernetes Changes
+### Deployment Changes
 
-1. Modify YAML files in `k8s/`
-2. Test with: `kubectl apply -f k8s/ --dry-run=client -n portfolio`
-3. Validate: `kubectl apply -f k8s/ -n portfolio`
-4. Update k8s README with any configuration changes
+1. Modify Docker configurations or systemd service files
+2. Test locally with Docker
+3. Update deployment documentation
+4. Test with: `docker build -t test .`
+5. Verify systemd service works: See systemd/README.md
 
 ## Testing
 
 ### Manual Testing
 
-1. Start all services (Kubernetes or locally via ./scripts/dev-start.sh)
+1. Start all services (systemd or locally via ./scripts/dev-start.sh)
 2. Test each feature:
    - Chat functionality with streaming
    - File upload/download
@@ -253,12 +255,13 @@ Add screenshots for UI changes
 
 - [ ] Video tutorials
 - [ ] API examples
-- [ ] Deployment guides (AWS, Azure, GCP)
+- [ ] Deployment guides (AWS, Azure, GCP, VPS)
 - [ ] Troubleshooting guide expansion
 - [ ] Performance optimization guide
 
 ### Infrastructure
 
+- [ ] Systemd service improvements
 - [ ] CI/CD pipeline
 - [ ] Automated testing
 - [ ] Performance benchmarks
