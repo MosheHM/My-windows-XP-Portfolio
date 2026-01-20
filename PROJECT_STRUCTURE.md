@@ -273,39 +273,39 @@ Client displays confirmation
 
 ## Deployment Options
 
-### 1. Kubernetes (Production)
+### 1. Systemd (Production)
 
 **Pros:**
-- Production-grade deployment
-- Auto-scaling and high availability
-- Resource management (CPU/memory limits)
-- Rolling updates with zero downtime
-- Load balancing
-- Persistent storage (PVCs)
-- Health checks (liveness/readiness probes)
+- Simple deployment with systemd service management
+- Automatic service restart on failure
+- Native Linux process management
+- Resource control via systemd
+- Easy log management with journalctl
+- No cluster required
 
 **Cons:**
-- Requires Kubernetes cluster
-- More complex initial setup
+- Limited to single server
+- Manual scaling required
 
 **Usage:**
 ```bash
-# Automated deployment
-./scripts/deploy-k8s.sh
+# Build Docker images
+docker build -t portfolio-client:latest ./client
+docker build -t portfolio-file-service:latest ./services/file-service
+docker build -t portfolio-nginx:latest ./nginx
 
-# Or using Kustomize
-kubectl apply -k k8s/
+# Create Docker network
+docker network create portfolio-network
 
-# Or manual deployment
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/configmap.yaml -n portfolio
-kubectl apply -f k8s/llm-service-deployment.yaml -n portfolio
-kubectl apply -f k8s/file-service-deployment.yaml -n portfolio
-kubectl apply -f k8s/client-deployment.yaml -n portfolio
-kubectl apply -f k8s/nginx-gateway-deployment.yaml -n portfolio
+# Install systemd services
+cd systemd
+sudo cp *.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable portfolio-*
+sudo systemctl start portfolio-*
 ```
 
-See [k8s/README.md](k8s/README.md) for detailed documentation.
+See [systemd/README.md](systemd/README.md) for detailed documentation.
 
 ### 2. Local Development
 
@@ -313,7 +313,7 @@ See [k8s/README.md](k8s/README.md) for detailed documentation.
 - Fast iteration
 - Hot reload
 - Easy debugging
-- No cluster required
+- No Docker required
 
 **Cons:**
 - Manual setup
@@ -330,8 +330,8 @@ See [k8s/README.md](k8s/README.md) for detailed documentation.
 
 | Component | Development | Production |
 |-----------|-------------|------------|
-| LLM Model Cache | 5-10GB | 10GB (PVC) |
-| File Storage | 1-5GB | 20GB (PVC) |
+| LLM Model Cache | 5-10GB | N/A (browser-based) |
+| File Storage | 1-5GB | 20GB (Docker volume) |
 | Client Build | 1MB | N/A (static) |
 | Python Packages | 500MB | N/A (in image) |
 | Node Modules | 100MB | N/A (build only) |
@@ -343,25 +343,24 @@ See [k8s/README.md](k8s/README.md) for detailed documentation.
 ```
 Client (localhost:5173)
     ↓
-LLM Service (localhost:8000)
+LLM Service (browser-based)
 File Service (localhost:8001)
 ```
 
-### Kubernetes
+### Systemd Production
 
 ```
-Client Request (NodePort :30080)
+Client Request (:80)
     ↓
-Nginx Gateway Service
-    ↓ (Kubernetes service mesh)
-    ├── /api/llm/* → llm-service:8000 (ClusterIP)
-    ├── /api/files/* → file-service:8001 (ClusterIP)
-    └── /* → client-service:80 (ClusterIP)
+Nginx Gateway (systemd service)
+    ↓ (Docker network)
+    ├── /api/files/* → file-service:8001 (Docker container)
+    └── /* → client:80 (Docker container)
     ↓
-Pods with:
-- Health checks (liveness/readiness probes)
-- Resource limits (CPU/memory)
-- Persistent volumes (PVCs)
+Containers managed by systemd:
+- Automatic restart on failure
+- Resource limits via Docker
+- Persistent volumes (Docker volumes)
 ```
 
 ## Security Considerations
